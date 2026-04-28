@@ -4,7 +4,17 @@ Registration response objects.
 from typing import Optional
 
 from strr_api.enums.enum import RegistrationStatus, RegistrationType
-from strr_api.models import Application, Platform, PropertyManager, Registration, StrataHotel
+from strr_api.models import (
+    Application,
+    Platform,
+    PlatformRegistration,
+    PropertyContact,
+    PropertyManager,
+    Registration,
+    RentalProperty,
+    StrataHotel,
+    StrataHotelRegistration,
+)
 
 
 class RegistrationSerializer:
@@ -36,8 +46,13 @@ class RegistrationSerializer:
     }
 
     @classmethod
-    def serialize(cls, registration: Registration):
-        """Return a Registration object from a database model."""
+    def serialize(cls, registration: Registration, applications: list | None = None):
+        """Return a Registration object from a database model.
+
+        When ``applications`` is provided (e.g. batch-loaded for a search page), it is used
+        for header applications and host jurisdiction/strRequirements instead of querying
+        per registration.
+        """
         registration_data = {
             "id": registration.id,
             "user_id": registration.user_id,
@@ -77,7 +92,7 @@ class RegistrationSerializer:
                 for snapshot in sorted(registration.snapshots, key=lambda s: s.version, reverse=True)
             ]
 
-        RegistrationSerializer._populate_header_data(registration_data, registration)
+        RegistrationSerializer._populate_header_data(registration_data, registration, applications=applications)
 
         documents = []
         if registration.documents:
@@ -96,7 +111,9 @@ class RegistrationSerializer:
         registration_data["documents"] = documents
 
         if registration.registration_type == RegistrationType.HOST.value:
-            RegistrationSerializer.populate_host_registration_details(registration_data, registration)
+            RegistrationSerializer.populate_host_registration_details(
+                registration_data, registration, applications=applications
+            )
 
         elif registration.registration_type == RegistrationType.PLATFORM.value:
             RegistrationSerializer.populate_platform_registration_details(registration_data, registration)
@@ -107,7 +124,207 @@ class RegistrationSerializer:
         return registration_data
 
     @classmethod
-    def _populate_header_data(cls, registration_data: dict, registration: Registration):
+    def serialize_for_examiner_search_list(cls, registration: Registration, applications: list | None = None):
+        """Minimal registration JSON for examiner ``/registrations/search`` list rows.
+
+        Matches fields used by the examiner dashboard table (addresses, requirements,
+        adjudicator, renewal badge, recent-document indicator) without snapshots,
+        conditions of approval, or large nested trees.
+        """
+        registration_data = {
+            "id": registration.id,
+            "user_id": registration.user_id,
+            "sbc_account_id": registration.sbc_account_id,
+            "registrationType": registration.registration_type,
+            "updatedDate": registration.updated_date.isoformat(),
+            "cancelledDate": registration.cancelled_date.isoformat() if registration.cancelled_date else None,
+            "startDate": registration.start_date.isoformat() if registration.start_date else None,
+            "expiryDate": registration.expiry_date.isoformat() if registration.expiry_date else None,
+            "status": registration.status.name,
+            "registrationNumber": registration.registration_number,
+            "nocStatus": registration.noc_status.name if registration.noc_status else None,
+            "provisionalExtensionApplied": registration.provisional_extension_applied,
+            "header": {
+                "isSetAside": registration.is_set_aside,
+                "assignee": cls._get_user_info(registration.reviewer_id, registration.reviewer),
+                "decider": cls._get_user_info(registration.decider_id, registration.decider),
+                "applications": cls._application_headers_for_list(registration, applications=applications),
+            },
+            "documents": cls._thin_documents_for_search_list(registration),
+        }
+
+        if registration.registration_type == RegistrationType.HOST.value:
+            cls._examiner_search_list_host(registration_data, registration, applications=applications)
+        elif registration.registration_type == RegistrationType.PLATFORM.value:
+            cls._examiner_search_list_platform(registration_data, registration)
+        elif registration.registration_type == RegistrationType.STRATA_HOTEL.value:
+            cls._examiner_search_list_strata(registration_data, registration)
+
+        return registration_data
+
+    @staticmethod
+    def _thin_documents_for_search_list(registration: Registration) -> list[dict]:
+        if not registration.documents:
+            return []
+        thin = []
+        for doc in registration.documents:
+            added_on_value = doc.added_on if doc.added_on is not None else getattr(doc, "created", None)
+            thin.append({"addedOn": added_on_value.isoformat() if added_on_value else None})
+        return thin
+
+    @classmethod
+    def _application_headers_for_list(
+        cls, registration: Registration, applications: list | None = None
+    ) -> list[dict]:
+        if applications is None:
+            applications = Application.get_all_by_registration_id(registration.id)
+        if not applications:
+            return []
+        sorted_applications = sorted(applications, key=lambda app: app.application_date, reverse=True)
+        return [
+            {
+                "applicationNumber": application.application_number,
+                "applicationDateTime": application.application_date.isoformat(),
+                "applicationType": application.type,
+                "applicationStatus": application.status,
+            }
+            for application in sorted_applications
+        ]
+
+    @classmethod
+    def _mailing_address_dict(cls, address) -> dict:
+        if not address:
+            return {
+                "address": None,
+                "addressLineTwo": None,
+                "city": None,
+                "postalCode": None,
+                "province": None,
+                "country": None,
+                "locationDescription": None,
+            }
+        return {
+            "address": address.street_address,
+            "addressLineTwo": address.street_address_additional,
+            "city": address.city,
+            "postalCode": address.postal_code,
+            "province": address.province,
+            "country": address.country,
+            "locationDescription": address.location_description,
+        }
+
+    @classmethod
+    def _examiner_search_list_host(
+        cls, registration_data: dict, registration: Registration, applications: list | None = None
+    ):
+        rp: RentalProperty | None = registration.rental_property
+        if not rp:
+            registration_data["primaryContact"] = {"firstName": None, "middleName": None, "lastName": None}
+            registration_data["unitAddress"] = None
+            registration_data["unitDetails"] = {
+                "jurisdiction": None,
+                "prRequired": None,
+                "blRequired": None,
+                "prExemptReason": None,
+                "strataHotelCategory": None,
+            }
+            str_requirements = cls.get_str_requirements_from_application(registration, applications=applications)
+            if str_requirements:
+                registration_data["strRequirements"] = str_requirements
+            return
+
+        primary_contacts = [c for c in rp.contacts if c.is_primary]
+        if not primary_contacts:
+            registration_data["primaryContact"] = {"firstName": None, "middleName": None, "lastName": None}
+        else:
+            pc = primary_contacts[0].contact
+            registration_data["primaryContact"] = {
+                "firstName": pc.firstname,
+                "middleName": pc.middlename,
+                "lastName": pc.lastname,
+            }
+
+        registration_data["unitAddress"] = {
+            "unitNumber": rp.address.unit_number,
+            "streetNumber": rp.address.street_number,
+            "streetName": rp.address.street_address,
+            "addressLineTwo": rp.address.street_address_additional,
+            "city": rp.address.city,
+            "postalCode": rp.address.postal_code,
+            "province": rp.address.province,
+            "country": rp.address.country,
+            "nickname": rp.nickname,
+            "locationDescription": rp.address.location_description,
+        }
+
+        registration_data["unitDetails"] = {
+            "jurisdiction": cls.get_jurisdiction_from_application(registration, applications=applications),
+            "prRequired": rp.pr_required,
+            "blRequired": rp.bl_required,
+            "prExemptReason": rp.pr_exempt_reason,
+            "strataHotelCategory": rp.strata_hotel_category.name if rp.strata_hotel_category else None,
+        }
+
+        str_requirements = cls.get_str_requirements_from_application(registration, applications=applications)
+        if str_requirements:
+            registration_data["strRequirements"] = str_requirements
+
+    @classmethod
+    def _examiner_search_list_platform(cls, registration_data: dict, registration: Registration):
+        pr: PlatformRegistration | None = registration.platform_registration
+        if not pr or not pr.platform:
+            registration_data["businessDetails"] = {
+                "legalName": None,
+                "mailingAddress": cls._mailing_address_dict(None),
+            }
+            registration_data["platformDetails"] = {"listingSize": None, "documents": []}
+            return
+
+        platform: Platform = pr.platform
+        registration_data["businessDetails"] = {
+            "legalName": platform.legal_name,
+            "mailingAddress": cls._mailing_address_dict(platform.mailingAddress),
+        }
+        thin_docs = cls._thin_documents_for_search_list(registration)
+        registration_data["platformDetails"] = {
+            "listingSize": platform.listing_size,
+            "documents": thin_docs,
+        }
+
+    @classmethod
+    def _examiner_search_list_strata(cls, registration_data: dict, registration: Registration):
+        shr: StrataHotelRegistration | None = registration.strata_hotel_registration
+        if not shr or not shr.strata_hotel:
+            registration_data["businessDetails"] = {"legalName": None}
+            registration_data["strataHotelDetails"] = {
+                "location": cls._mailing_address_dict(None),
+                "documents": [],
+            }
+            return
+
+        strata_hotel: StrataHotel = shr.strata_hotel
+        registration_data["businessDetails"] = {"legalName": strata_hotel.legal_name}
+        loc = strata_hotel.location
+        registration_data["strataHotelDetails"] = {
+            "location": {
+                "address": loc.street_address,
+                "addressLineTwo": loc.street_address_additional,
+                "city": loc.city,
+                "postalCode": loc.postal_code,
+                "province": loc.province,
+                "country": loc.country,
+                "locationDescription": loc.location_description,
+            },
+            "documents": [],
+        }
+
+    @classmethod
+    def _populate_header_data(
+        cls,
+        registration_data: dict,
+        registration: Registration,
+        applications: list | None = None,
+    ):
         """Populates header data into response object."""
         registration_data["header"] = {}
         registration_data["header"]["isSetAside"] = registration.is_set_aside
@@ -121,7 +338,7 @@ class RegistrationSerializer:
         registration_data["header"]["examinerActions"] = cls._get_examiner_actions(registration)
         registration_data["header"]["assignee"] = cls._get_user_info(registration.reviewer_id, registration.reviewer)
         registration_data["header"]["decider"] = cls._get_user_info(registration.decider_id, registration.decider)
-        cls._populate_applications(registration_data, registration)
+        cls._populate_applications(registration_data, registration, applications=applications)
 
     @classmethod
     def _get_examiner_actions(cls, registration: Registration) -> list:
@@ -153,9 +370,15 @@ class RegistrationSerializer:
         return user_info
 
     @classmethod
-    def _populate_applications(cls, registration_data: dict, registration: Registration):
+    def _populate_applications(
+        cls,
+        registration_data: dict,
+        registration: Registration,
+        applications: list | None = None,
+    ):
         """Populate applications data."""
-        applications = Application.get_all_by_registration_id(registration.id)
+        if applications is None:
+            applications = Application.get_all_by_registration_id(registration.id)
         if not applications:
             return
 
@@ -310,7 +533,12 @@ class RegistrationSerializer:
         registration_data["platformDetails"] = {"brands": platform_brands, "listingSize": platform.listing_size}
 
     @classmethod
-    def populate_host_registration_details(cls, registration_data: dict, registration: Registration):
+    def populate_host_registration_details(
+        cls,
+        registration_data: dict,
+        registration: Registration,
+        applications: list | None = None,
+    ):
         """Populates host registration details into response object."""
 
         primary_property_contact = list(filter(lambda x: x.is_primary is True, registration.rental_property.contacts))[
@@ -408,7 +636,9 @@ class RegistrationSerializer:
             "strataHotelRegistrationNumber": registration.rental_property.strata_hotel_registration_number,
             "prExemptReason": registration.rental_property.pr_exempt_reason,
             "strataHotelCategory": registration.rental_property.strata_hotel_category,
-            "jurisdiction": RegistrationSerializer.get_jurisdiction_from_application(registration),
+            "jurisdiction": RegistrationSerializer.get_jurisdiction_from_application(
+                registration, applications=applications
+            ),
             "prRequired": registration.rental_property.pr_required,
             "blRequired": registration.rental_property.bl_required,
             "rentalUnitSetupOption": registration.rental_property.rental_space_option,
@@ -416,7 +646,9 @@ class RegistrationSerializer:
         }
 
         # Add strRequirements from application (source of truth)
-        str_requirements = RegistrationSerializer.get_str_requirements_from_application(registration)
+        str_requirements = RegistrationSerializer.get_str_requirements_from_application(
+            registration, applications=applications
+        )
         if str_requirements:
             registration_data["strRequirements"] = str_requirements
 
@@ -497,12 +729,15 @@ class RegistrationSerializer:
         }
 
     @classmethod
-    def get_jurisdiction_from_application(cls, registration: Registration) -> Optional[str]:
+    def get_jurisdiction_from_application(
+        cls, registration: Registration, applications: list | None = None
+    ) -> Optional[str]:
         """Returns the jurisdiction of a registration."""
         if registration.rental_property.jurisdiction:
             return registration.rental_property.jurisdiction
         else:
-            applications = Application.get_all_by_registration_id(registration.id)
+            if applications is None:
+                applications = Application.get_all_by_registration_id(registration.id)
             if applications:
                 latest_application = sorted(applications, key=lambda app: app.application_date, reverse=True)[0]
                 return (
@@ -513,9 +748,12 @@ class RegistrationSerializer:
         return None
 
     @classmethod
-    def get_str_requirements_from_application(cls, registration: Registration) -> Optional[dict]:
+    def get_str_requirements_from_application(
+        cls, registration: Registration, applications: list | None = None
+    ) -> Optional[dict]:
         """Returns the strRequirements from the most recent application."""
-        applications = Application.get_all_by_registration_id(registration.id)
+        if applications is None:
+            applications = Application.get_all_by_registration_id(registration.id)
         if not applications:
             return None
 

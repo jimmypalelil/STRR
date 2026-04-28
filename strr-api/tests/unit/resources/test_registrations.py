@@ -2092,6 +2092,11 @@ def test_search_registrations(app, session, client, jwt):
         registrations = rv.json
         assert len(registrations.get("registrations")) == 1
         assert registrations.get("registrations")[0].get("registrationNumber") == registration_number
+        reg0 = registrations.get("registrations")[0]
+        assert "snapshots" not in reg0
+        assert "conditionsOfApproval" not in reg0
+        assert reg0.get("header", {}).get("applications")
+        assert isinstance(reg0.get("documents"), list)
 
         rv = client.get("/registrations/search?recordNumber=NONEXISTENT123", headers=staff_headers)
         assert rv.status_code == HTTPStatus.OK

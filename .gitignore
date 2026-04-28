@@ -175,3 +175,6 @@ unit-tests.sh
 # Poetry.toml
 **/poetry.toml
 
+# Local perf harness output (JSON); see strr-api/docs/perf-registration-search-analysis.md
+strr-api/perf_results/
+
