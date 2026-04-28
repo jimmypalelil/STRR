@@ -262,6 +262,28 @@ class Application(BaseModel):
         return cls.query.filter_by(registration_id=registration_id).all()
 
     @classmethod
+    def get_all_by_registration_ids(cls, registration_ids: List[int]) -> dict[int, list[Application]]:
+        """Return applications grouped by registration_id (newest first within each group).
+
+        Used to avoid N+1 queries when serializing many registrations (e.g. examiner search).
+        """
+        if not registration_ids:
+            return {}
+        unique_ids = list(dict.fromkeys(registration_ids))
+        rows = (
+            cls.query.filter(cls.registration_id.in_(unique_ids))
+            .order_by(cls.registration_id.asc(), cls.application_date.desc())
+            .all()
+        )
+        by_reg: dict[int, list[Application]] = {rid: [] for rid in unique_ids}
+        for row in rows:
+            if row.registration_id is not None:
+                by_reg[row.registration_id].append(row)
+        for apps in by_reg.values():
+            apps.sort(key=lambda a: a.application_date, reverse=True)
+        return by_reg
+
+    @classmethod
     def _filter_by_application_registration_number(cls, search_term: str, query: Query) -> Query:
         """Filter query by application or registration number."""
         if not search_term:

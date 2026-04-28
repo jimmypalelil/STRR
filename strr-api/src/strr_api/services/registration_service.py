@@ -38,6 +38,7 @@
 # pylint: disable=R0904
 """Manages registration model interactions."""
 import logging
+import os
 import random
 import traceback
 from datetime import date, datetime, time, timedelta, timezone
@@ -57,6 +58,7 @@ from strr_api.enums.enum import (
 from strr_api.exceptions import JurisdictionUpdateException
 from strr_api.models import (
     Address,
+    Application,
     Certificate,
     ConditionsOfApproval,
     Contact,
@@ -612,9 +614,20 @@ class RegistrationService:
         query = query.order_by(sort_column.desc() if sort_desc else sort_column.asc())
         paginated_result = query.paginate(per_page=limit, page=offset)
 
+        items = list(paginated_result.items)
         search_results = []
-        for registration in paginated_result.items:
-            search_results.append(RegistrationService.serialize(registration))
+        if os.environ.get("STRR_REGISTRATION_SEARCH_SKIP_APPLICATION_BATCH") == "1":
+            for registration in items:
+                search_results.append(RegistrationService.serialize(registration))
+        else:
+            reg_ids = [r.id for r in items]
+            apps_by_reg = Application.get_all_by_registration_ids(reg_ids) if reg_ids else {}
+            for registration in items:
+                search_results.append(
+                    RegistrationService.serialize(
+                        registration, applications=apps_by_reg.get(registration.id)
+                    )
+                )
 
         return {
             "page": offset,
@@ -719,9 +732,9 @@ class RegistrationService:
         return query.order_by(Certificate.issued_date.desc()).limit(1).one_or_none()
 
     @classmethod
-    def serialize(cls, registration: Registration) -> dict:
+    def serialize(cls, registration: Registration, applications: list | None = None) -> dict:
         """Returns registration JSON."""
-        return RegistrationSerializer.serialize(registration=registration)
+        return RegistrationSerializer.serialize(registration=registration, applications=applications)
 
     @classmethod
     def update_registration_status(
@@ -1088,9 +1101,18 @@ class RegistrationService:
     def search_registrations(filter_criteria: RegistrationSearch) -> dict:
         """List all registrations matching the search criteria."""
         paginated_result = Registration.search_registrations(filter_criteria)
+        items = list(paginated_result.items)
         search_results = []
-        for item in paginated_result.items:
-            search_results.append(RegistrationService.serialize(item))
+        if os.environ.get("STRR_REGISTRATION_SEARCH_SKIP_APPLICATION_BATCH") == "1":
+            for item in items:
+                search_results.append(RegistrationService.serialize(item))
+        else:
+            reg_ids = [r.id for r in items]
+            apps_by_reg = Application.get_all_by_registration_ids(reg_ids) if reg_ids else {}
+            for item in items:
+                search_results.append(
+                    RegistrationService.serialize(item, applications=apps_by_reg.get(item.id))
+                )
 
         return {
             "page": filter_criteria.page,

@@ -58,10 +58,33 @@ build-nc: ## Build the docker container without caching
 # COMMANDS - Local                                                              #
 #################################################################################
 
+migrate: ## Run Alembic migrations to head
+	poetry run flask db upgrade
+
+# Synthetic volume + /registrations/search timings (see README "Performance testing")
+PERF_N ?= 10000
+
+perf-seed: ## Insert synthetic HOST registrations (set DEPLOYMENT_ENV=development)
+	DEPLOYMENT_ENV=development poetry run python scripts/perf_seed_registrations.py --registrations $(PERF_N) --batch-size 500 --seed 42
+
+perf-bench: ## Time examiner search matrix (optional PERF_OUT=file.json)
+	@if [ -z "$(PERF_OUT)" ]; then \
+		DEPLOYMENT_ENV=development poetry run python scripts/benchmark_registration_search.py --iterations 3; \
+	else \
+		DEPLOYMENT_ENV=development poetry run python scripts/benchmark_registration_search.py --iterations 3 --output "$(PERF_OUT)"; \
+	fi
+
+perf-sql: ## Log SQL for PERF_CASE (default default_statuses_only); redirect stderr to a file
+	DEPLOYMENT_ENV=development poetry run python scripts/perf_sql_registration_search.py --case $(or $(PERF_CASE),default_statuses_only)
+
+perf-compare: ## Compare PERF_BEFORE and PERF_AFTER JSON to PERF_REPORT (Markdown)
+	@test -n "$(PERF_BEFORE)" && test -n "$(PERF_AFTER)" && test -n "$(PERF_REPORT)" || (echo "Set PERF_BEFORE, PERF_AFTER, PERF_REPORT"; exit 1)
+	poetry run python scripts/compare_perf_benchmarks.py --before "$(PERF_BEFORE)" --after "$(PERF_AFTER)" --output "$(PERF_REPORT)"
+
 #################################################################################
 # Self Documenting Commands                                                     #
 #################################################################################
-.PHONY: help
+.PHONY: help perf-seed perf-bench perf-sql perf-compare migrate
 
 .DEFAULT_GOAL := help
 

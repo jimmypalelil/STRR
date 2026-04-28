@@ -36,8 +36,13 @@ class RegistrationSerializer:
     }
 
     @classmethod
-    def serialize(cls, registration: Registration):
-        """Return a Registration object from a database model."""
+    def serialize(cls, registration: Registration, applications: list | None = None):
+        """Return a Registration object from a database model.
+
+        When ``applications`` is provided (e.g. batch-loaded for a search page), it is used
+        for header applications and host jurisdiction/strRequirements instead of querying
+        per registration.
+        """
         registration_data = {
             "id": registration.id,
             "user_id": registration.user_id,
@@ -77,7 +82,7 @@ class RegistrationSerializer:
                 for snapshot in sorted(registration.snapshots, key=lambda s: s.version, reverse=True)
             ]
 
-        RegistrationSerializer._populate_header_data(registration_data, registration)
+        RegistrationSerializer._populate_header_data(registration_data, registration, applications=applications)
 
         documents = []
         if registration.documents:
@@ -96,7 +101,9 @@ class RegistrationSerializer:
         registration_data["documents"] = documents
 
         if registration.registration_type == RegistrationType.HOST.value:
-            RegistrationSerializer.populate_host_registration_details(registration_data, registration)
+            RegistrationSerializer.populate_host_registration_details(
+                registration_data, registration, applications=applications
+            )
 
         elif registration.registration_type == RegistrationType.PLATFORM.value:
             RegistrationSerializer.populate_platform_registration_details(registration_data, registration)
@@ -107,7 +114,12 @@ class RegistrationSerializer:
         return registration_data
 
     @classmethod
-    def _populate_header_data(cls, registration_data: dict, registration: Registration):
+    def _populate_header_data(
+        cls,
+        registration_data: dict,
+        registration: Registration,
+        applications: list | None = None,
+    ):
         """Populates header data into response object."""
         registration_data["header"] = {}
         registration_data["header"]["isSetAside"] = registration.is_set_aside
@@ -121,7 +133,7 @@ class RegistrationSerializer:
         registration_data["header"]["examinerActions"] = cls._get_examiner_actions(registration)
         registration_data["header"]["assignee"] = cls._get_user_info(registration.reviewer_id, registration.reviewer)
         registration_data["header"]["decider"] = cls._get_user_info(registration.decider_id, registration.decider)
-        cls._populate_applications(registration_data, registration)
+        cls._populate_applications(registration_data, registration, applications=applications)
 
     @classmethod
     def _get_examiner_actions(cls, registration: Registration) -> list:
@@ -153,9 +165,15 @@ class RegistrationSerializer:
         return user_info
 
     @classmethod
-    def _populate_applications(cls, registration_data: dict, registration: Registration):
+    def _populate_applications(
+        cls,
+        registration_data: dict,
+        registration: Registration,
+        applications: list | None = None,
+    ):
         """Populate applications data."""
-        applications = Application.get_all_by_registration_id(registration.id)
+        if applications is None:
+            applications = Application.get_all_by_registration_id(registration.id)
         if not applications:
             return
 
@@ -310,7 +328,12 @@ class RegistrationSerializer:
         registration_data["platformDetails"] = {"brands": platform_brands, "listingSize": platform.listing_size}
 
     @classmethod
-    def populate_host_registration_details(cls, registration_data: dict, registration: Registration):
+    def populate_host_registration_details(
+        cls,
+        registration_data: dict,
+        registration: Registration,
+        applications: list | None = None,
+    ):
         """Populates host registration details into response object."""
 
         primary_property_contact = list(filter(lambda x: x.is_primary is True, registration.rental_property.contacts))[
@@ -408,7 +431,9 @@ class RegistrationSerializer:
             "strataHotelRegistrationNumber": registration.rental_property.strata_hotel_registration_number,
             "prExemptReason": registration.rental_property.pr_exempt_reason,
             "strataHotelCategory": registration.rental_property.strata_hotel_category,
-            "jurisdiction": RegistrationSerializer.get_jurisdiction_from_application(registration),
+            "jurisdiction": RegistrationSerializer.get_jurisdiction_from_application(
+                registration, applications=applications
+            ),
             "prRequired": registration.rental_property.pr_required,
             "blRequired": registration.rental_property.bl_required,
             "rentalUnitSetupOption": registration.rental_property.rental_space_option,
@@ -416,7 +441,9 @@ class RegistrationSerializer:
         }
 
         # Add strRequirements from application (source of truth)
-        str_requirements = RegistrationSerializer.get_str_requirements_from_application(registration)
+        str_requirements = RegistrationSerializer.get_str_requirements_from_application(
+            registration, applications=applications
+        )
         if str_requirements:
             registration_data["strRequirements"] = str_requirements
 
@@ -497,12 +524,15 @@ class RegistrationSerializer:
         }
 
     @classmethod
-    def get_jurisdiction_from_application(cls, registration: Registration) -> Optional[str]:
+    def get_jurisdiction_from_application(
+        cls, registration: Registration, applications: list | None = None
+    ) -> Optional[str]:
         """Returns the jurisdiction of a registration."""
         if registration.rental_property.jurisdiction:
             return registration.rental_property.jurisdiction
         else:
-            applications = Application.get_all_by_registration_id(registration.id)
+            if applications is None:
+                applications = Application.get_all_by_registration_id(registration.id)
             if applications:
                 latest_application = sorted(applications, key=lambda app: app.application_date, reverse=True)[0]
                 return (
@@ -513,9 +543,12 @@ class RegistrationSerializer:
         return None
 
     @classmethod
-    def get_str_requirements_from_application(cls, registration: Registration) -> Optional[dict]:
+    def get_str_requirements_from_application(
+        cls, registration: Registration, applications: list | None = None
+    ) -> Optional[dict]:
         """Returns the strRequirements from the most recent application."""
-        applications = Application.get_all_by_registration_id(registration.id)
+        if applications is None:
+            applications = Application.get_all_by_registration_id(registration.id)
         if not applications:
             return None
 
