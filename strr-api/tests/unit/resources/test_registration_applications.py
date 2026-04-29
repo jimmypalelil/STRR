@@ -78,11 +78,14 @@ def test_delete_draft_applications(session, client, jwt):
 
 
 def test_staff_cannot_access_draft_applications(session, client, jwt):
+    """Staff search omits DRAFT rows (``Application.search_applications`` when no account filter)."""
     headers = create_header(jwt, [STRR_EXAMINER], "Account-Id")
     rv = client.get("/applications/search", headers=headers)
     assert HTTPStatus.OK == rv.status_code
     applications = rv.json
-    assert len(applications.get("applications")) == 0
+    draft = Application.Status.DRAFT.value
+    for row in applications.get("applications", []):
+        assert row.get("header", {}).get("status") != draft
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,232 @@
+"""Integration tests for public/account ``/registrations`` read paths and auth smoke."""
+
+from http import HTTPStatus
+
+import pytest
+
+from strr_api.enums.enum import ErrorMessage
+from tests.integration.helpers import (
+    assert_json_keys,
+    assert_status,
+    resolve_path_for_unauth,
+    routes_with_prefix,
+    unauthenticated_request,
+)
+from tests.integration.registration_seed import (
+    seed_applicant_visible_registration_event,
+    seed_registration_snapshot,
+    seed_serializable_host_registration,
+)
+from tests.integration.route_registry import EXPECTED_STRR_API_ROUTES, PUBLIC_ROUTES
+
+_ROWS = routes_with_prefix(EXPECTED_STRR_API_ROUTES - PUBLIC_ROUTES, "/registrations")
+_ROW_IDS = [f"{m}_{r}".replace("/", "_").replace("<", "").replace(">", "") for m, r in _ROWS]
+
+
+@pytest.mark.parametrize("method,rule", _ROWS, ids=_ROW_IDS)
+def test_registrations_routes_require_auth_without_bearer(client, method, rule):
+    path = resolve_path_for_unauth(rule)
+    rv = unauthenticated_request(client, method, path)
+    assert rv.status_code == HTTPStatus.UNAUTHORIZED
+
+
+def test_get_registrations_list_ok(client, jwt, integration_account_id):
+    from tests.unit.utils.auth_helpers import PUBLIC_USER, create_header
+
+    headers = create_header(jwt, [PUBLIC_USER], "Account-Id")
+    headers["Account-Id"] = str(integration_account_id)
+    rv = client.get("/registrations", headers=headers)
+    assert rv.status_code == HTTPStatus.OK
+    assert rv.is_json
+
+
+def test_get_registrations_list_envelope_and_row(client, headers_public_user, serializable_host_registration):
+    rv = client.get("/registrations", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.OK)
+    data = assert_json_keys(rv, "page", "limit", "registrations", "total")
+    assert isinstance(data["registrations"], list)
+    assert isinstance(data["total"], int)
+    assert data["total"] >= 1
+    ids = {r["id"] for r in data["registrations"]}
+    assert serializable_host_registration["registration_id"] in ids
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "status=ACTIVE",
+        "registration_type=HOST",
+        "sort_desc=true",
+        "limit=10&offset=1",
+        "status=ACTIVE&registration_type=HOST&sort_desc=true",
+    ],
+)
+def test_get_registrations_list_query_params_ok(
+    client, headers_public_user, serializable_host_registration, query
+):
+    rid = serializable_host_registration["registration_id"]
+    rv = client.get(f"/registrations?{query}", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.OK)
+    data = assert_json_keys(rv, "page", "limit", "registrations", "total")
+    ids = {r["id"] for r in data["registrations"]}
+    assert rid in ids
+
+
+def test_get_registration_detail_shape(
+    client, integration_account_id, headers_public_user, serializable_host_registration
+):
+    rid = serializable_host_registration["registration_id"]
+    rv = client.get(f"/registrations/{rid}", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.OK)
+    data = assert_json_keys(
+        rv,
+        "id",
+        "registrationNumber",
+        "status",
+        "sbc_account_id",
+        "header",
+        "primaryContact",
+        "unitAddress",
+        "unitDetails",
+    )
+    assert data["id"] == rid
+    assert data["registrationNumber"] == serializable_host_registration["registration_number"]
+    assert data["sbc_account_id"] == integration_account_id
+    assert isinstance(data["header"], dict)
+    assert "hostStatus" in data["header"]
+
+
+def test_get_registration_not_found_wrong_account(client, session, headers_public_user, random_string):
+    other = seed_serializable_host_registration(
+        session,
+        account_id=999_999_999,
+        registration_number=f"OTH{random_string(8).upper()}",
+    )
+    session.flush()
+    rv = client.get(f"/registrations/{other['registration_id']}", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.NOT_FOUND)
+
+
+def test_get_registration_not_found_unknown_id(client, headers_public_user):
+    rv = client.get("/registrations/999999999", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.NOT_FOUND)
+
+
+def test_validate_registration_active_and_inactive(client, headers_public_user, serializable_host_registration):
+    num = serializable_host_registration["registration_number"]
+    rv = client.get(f"/registrations/{num}/validate", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.OK)
+    data = assert_json_keys(rv, "isValid")
+    assert data["isValid"] is True
+
+    rv2 = client.get("/registrations/ZZ-NONEXIST-99999/validate", headers=headers_public_user())
+    assert_status(rv2, HTTPStatus.OK)
+    data2 = assert_json_keys(rv2, "isValid")
+    assert data2["isValid"] is False
+
+
+def test_registrations_search_unauthorized_for_public_user(client, headers_public_user):
+    """Staff search requires examiner/investigator; public JWT is rejected (401 from JWT layer)."""
+    rv = client.get("/registrations/search?text=abc", headers=headers_public_user())
+    assert rv.status_code == HTTPStatus.UNAUTHORIZED
+
+
+def test_registrations_user_search_requires_account_id(client, jwt):
+    from tests.unit.utils.auth_helpers import PUBLIC_USER, create_header
+
+    headers = create_header(jwt, [PUBLIC_USER])
+    rv = client.get("/registrations/user/search?text=abc", headers=headers)
+    assert_status(rv, HTTPStatus.BAD_REQUEST)
+
+
+def test_registrations_user_search_short_text_bad_request(client, headers_public_user):
+    rv = client.get(
+        "/registrations/user/search?text=ab",
+        headers=headers_public_user(),
+    )
+    assert_status(rv, HTTPStatus.BAD_REQUEST)
+
+
+def test_registrations_user_search_envelope_ok(client, headers_public_user, serializable_host_registration):
+    rv = client.get("/registrations/user/search", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.OK)
+    data = assert_json_keys(rv, "page", "limit", "registrations", "total")
+    assert isinstance(data["registrations"], list)
+
+
+def test_registrations_user_search_text_finds_registration(
+    client, headers_public_user, serializable_host_registration
+):
+    suffix = serializable_host_registration["registration_number"][-6:]
+    rv = client.get(f"/registrations/user/search?text={suffix}", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.OK)
+    data = assert_json_keys(rv, "page", "limit", "registrations", "total")
+    numbers = {r.get("registrationNumber") or r.get("registration_number") for r in data["registrations"]}
+    assert serializable_host_registration["registration_number"] in numbers
+
+
+def test_get_registration_todos_envelope(client, headers_public_user, serializable_host_registration):
+    rid = serializable_host_registration["registration_id"]
+    rv = client.get(f"/registrations/{rid}/todos", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.OK)
+    data = assert_json_keys(rv, "todos")
+    assert isinstance(data["todos"], list)
+
+
+def test_get_registration_snapshot_ok(
+    client, session, headers_public_user, serializable_host_registration, integration_account_id
+):
+    _ = integration_account_id
+    rid = serializable_host_registration["registration_id"]
+    snap = seed_registration_snapshot(session, rid, snapshot_data={"k": "v"})
+    session.flush()
+    rv = client.get(f"/registrations/{rid}/snapshots/{snap['snapshot_id']}", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.OK)
+    data = assert_json_keys(rv, "id", "registrationId", "version", "snapshotDateTime", "snapshotData")
+    assert data["registrationId"] == rid
+    assert data["snapshotData"] == {"k": "v"}
+
+
+def test_get_registration_snapshot_not_found_wrong_id(
+    client, session, headers_public_user, serializable_host_registration
+):
+    rid = serializable_host_registration["registration_id"]
+    seed_registration_snapshot(session, rid)
+    session.flush()
+    rv = client.get(f"/registrations/{rid}/snapshots/999999999", headers=headers_public_user())
+    assert_status(rv, HTTPStatus.NOT_FOUND)
+
+
+def test_get_registration_events_item_shape(
+    client, session, headers_public_user, serializable_host_registration
+):
+    rid = serializable_host_registration["registration_id"]
+    seed_applicant_visible_registration_event(session, rid, user_id=serializable_host_registration["user_id"])
+    session.flush()
+    rv = client.get(f"/registrations/{rid}/events", headers=headers_public_user())
+    assert rv.status_code == HTTPStatus.OK
+    assert rv.is_json
+    body = rv.get_json()
+    assert isinstance(body, list)
+    assert len(body) >= 1
+    for item in body:
+        assert set(item.keys()) >= {"eventType", "eventName", "message", "createdDate"}
+
+
+def test_post_registration_document_rejected_without_noc(
+    client, headers_public_user, serializable_host_registration
+):
+    """Host cannot upload when NOC is not pending (unless staff / BL exception)."""
+    rid = serializable_host_registration["registration_id"]
+    from io import BytesIO
+
+    rv = client.post(
+        f"/registrations/{rid}/documents",
+        headers=headers_public_user(),
+        data={"file": (BytesIO(b"hello"), "note.txt")},
+        content_type="multipart/form-data",
+    )
+    assert_status(rv, HTTPStatus.BAD_REQUEST)
+    err = rv.get_json()
+    assert err is not None
+    assert ErrorMessage.REGISTRATION_DOCUMENT_UPLOAD_NOC_STATUS.value in (err.get("message") or "")
