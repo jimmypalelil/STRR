@@ -98,7 +98,7 @@ Each JSON run also records ``perf_prefixed_registration_count`` (rows with ``reg
 
 ### 3b. Before vs after (batched application load for search)
 
-Examiner ``GET /registrations/search`` serializes each page of registrations. By default the API **batch-loads** all ``Application`` rows for those registration IDs in **one** query and passes them into ``RegistrationSerializer``, removing repeated ``get_all_by_registration_id`` calls per row (up to three per registration for HOST detail + header).
+Examiner ``GET /registrations/search`` serializes each page of registrations. By default the API **batch-loads** all ``Application`` rows for those registration IDs in **one** query and returns a **lean list payload** (examiner table fields only: no snapshots, no conditions of approval, thin documents). The search query also **eager-loads** reviewers, properties, and related rows used by that payload. Set ``STRR_REGISTRATION_SEARCH_FULL_LIST_PAYLOAD=1`` to force the legacy full ``RegistrationSerializer.serialize`` shape for debugging or A/B comparisons.
 
 To capture a **before** trace (legacy per-row queries), set ``STRR_REGISTRATION_SEARCH_SKIP_APPLICATION_BATCH=1`` for the benchmark process only:
 

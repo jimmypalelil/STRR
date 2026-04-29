@@ -206,6 +206,9 @@ def main() -> None:
         "strr_registration_search_skip_application_batch": os.environ.get(
             "STRR_REGISTRATION_SEARCH_SKIP_APPLICATION_BATCH"
         ),
+        "strr_registration_search_full_list_payload": os.environ.get(
+            "STRR_REGISTRATION_SEARCH_FULL_LIST_PAYLOAD"
+        ),
         "perf_prefixed_registration_count": perf_prefixed_count,
         "iterations_per_row": args.iterations,
         "results": results,

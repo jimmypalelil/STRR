@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from sql_versioning import Versioned
 from sqlalchemy import Boolean, Enum
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, selectinload
 from sqlalchemy_utils.types.ts_vector import TSVectorType
 
 from strr_api.common.enum import BaseEnum, auto
@@ -131,15 +131,47 @@ class Registration(Versioned, BaseModel):
     )
 
     @classmethod
+    def _search_registration_eager_load_options(cls):
+        """ORM loader options for examiner registration search (list + lean serialization)."""
+        # pylint: disable=import-outside-toplevel
+        from strr_api.models.platforms import Platform, PlatformRegistration
+        from strr_api.models.strata_hotels import StrataHotel, StrataHotelRegistration
+        from strr_api.models.user import Contact
+
+        return (
+            selectinload(cls.reviewer),
+            selectinload(cls.decider),
+            selectinload(cls.documents),
+            selectinload(cls.rental_property).selectinload(RentalProperty.address),
+            selectinload(cls.rental_property)
+            .selectinload(RentalProperty.contacts)
+            .selectinload(PropertyContact.contact)
+            .selectinload(Contact.address),
+            selectinload(cls.platform_registration)
+            .selectinload(PlatformRegistration.platform)
+            .selectinload(Platform.mailingAddress),
+            selectinload(cls.strata_hotel_registration)
+            .selectinload(StrataHotelRegistration.strata_hotel)
+            .selectinload(StrataHotel.location),
+        )
+
+    @classmethod
     def search_registrations(cls, filter_criteria: RegistrationSearch):
         """Returns the registrations matching the search criteria."""
-        query = cls.query
+        query = cls.query.options(*cls._search_registration_eager_load_options())
         query = cls._apply_base_search_filters(query, filter_criteria)
         if filter_criteria.requirements:
             query = cls._filter_by_registration_requirement(filter_criteria.requirements, query)
         if filter_criteria.local_gov:
-            query = query.join(RentalProperty).filter(
-                RentalProperty.jurisdiction.ilike(f"%{filter_criteria.local_gov}%")
+            # Use EXISTS instead of JOIN so the query stays a simple "FROM registrations"
+            # and eager loads (selectinload) are not confused by an extra join root.
+            query = query.filter(
+                db.exists().where(
+                    db.and_(
+                        RentalProperty.registration_id == cls.id,
+                        RentalProperty.jurisdiction.ilike(f"%{filter_criteria.local_gov}%"),
+                    )
+                )
             )
         sub_status_conditions = cls._collect_sub_status_conditions(filter_criteria)
         if sub_status_conditions:

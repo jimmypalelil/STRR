@@ -1103,15 +1103,31 @@ class RegistrationService:
         paginated_result = Registration.search_registrations(filter_criteria)
         items = list(paginated_result.items)
         search_results = []
-        if os.environ.get("STRR_REGISTRATION_SEARCH_SKIP_APPLICATION_BATCH") == "1":
+        use_full_payload = os.environ.get("STRR_REGISTRATION_SEARCH_FULL_LIST_PAYLOAD") == "1"
+        skip_app_batch = os.environ.get("STRR_REGISTRATION_SEARCH_SKIP_APPLICATION_BATCH") == "1"
+
+        if use_full_payload:
+            if skip_app_batch:
+                for item in items:
+                    search_results.append(RegistrationService.serialize(item))
+            else:
+                reg_ids = [r.id for r in items]
+                apps_by_reg = Application.get_all_by_registration_ids(reg_ids) if reg_ids else {}
+                for item in items:
+                    search_results.append(
+                        RegistrationService.serialize(item, applications=apps_by_reg.get(item.id))
+                    )
+        elif skip_app_batch:
             for item in items:
-                search_results.append(RegistrationService.serialize(item))
+                search_results.append(RegistrationSerializer.serialize_for_examiner_search_list(item))
         else:
             reg_ids = [r.id for r in items]
             apps_by_reg = Application.get_all_by_registration_ids(reg_ids) if reg_ids else {}
             for item in items:
                 search_results.append(
-                    RegistrationService.serialize(item, applications=apps_by_reg.get(item.id))
+                    RegistrationSerializer.serialize_for_examiner_search_list(
+                        item, applications=apps_by_reg.get(item.id)
+                    )
                 )
 
         return {
