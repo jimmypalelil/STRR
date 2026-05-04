@@ -1,10 +1,13 @@
 """Integration tests for public/account ``/registrations`` read paths and auth smoke."""
 
 from http import HTTPStatus
+from io import BytesIO
+from unittest.mock import patch
 
 import pytest
 
-from strr_api.enums.enum import ErrorMessage
+from strr_api.enums.enum import ErrorMessage, RegistrationNocStatus
+from strr_api.models.rental import Document
 from tests.integration.helpers import (
     assert_json_keys,
     assert_status,
@@ -218,12 +221,85 @@ def test_post_registration_document_rejected_without_noc(
 ):
     """Host cannot upload when NOC is not pending (unless staff / BL exception)."""
     rid = serializable_host_registration["registration_id"]
-    from io import BytesIO
 
     rv = client.post(
         f"/registrations/{rid}/documents",
         headers=headers_public_user(),
         data={"file": (BytesIO(b"hello"), "note.txt")},
+        content_type="multipart/form-data",
+    )
+    assert_status(rv, HTTPStatus.BAD_REQUEST)
+    err = rv.get_json()
+    assert err is not None
+    assert ErrorMessage.REGISTRATION_DOCUMENT_UPLOAD_NOC_STATUS.value in (err.get("message") or "")
+
+
+def test_post_registration_document_ok_when_noc_pending_patched_upload(
+    client, session, headers_public_user, serializable_host_registration,
+):
+    """Host may upload when registration ``noc_status`` is ``NOC_PENDING`` (external upload patched)."""
+    from strr_api.models.rental import Registration as RegistrationModel
+
+    rid = serializable_host_registration["registration_id"]
+    reg = session.get(RegistrationModel, rid)
+    assert reg is not None
+    reg.noc_status = RegistrationNocStatus.NOC_PENDING
+    session.flush()
+    with patch(
+        "strr_api.services.document_service.DocumentService.upload_document",
+        return_value={"fileKey": "host-noc-upload-key-01"},
+    ):
+        rv = client.post(
+            f"/registrations/{rid}/documents",
+            headers=headers_public_user(),
+            data={"file": (BytesIO(b"hello-noc"), "noc-doc.txt"), "documentType": "OTHERS"},
+            content_type="multipart/form-data",
+        )
+    assert_status(rv, HTTPStatus.CREATED)
+    body = rv.get_json()
+    keys = {d.get("fileKey") for d in (body.get("documents") or [])}
+    assert "host-noc-upload-key-01" in keys
+
+
+def test_post_registration_document_bl_upload_ok_without_noc_when_affected_municipality(
+    client, headers_public_user, serializable_host_registration,
+):
+    """BL upload bypasses NOC check when flagged from affected municipality (upload patched)."""
+    rid = serializable_host_registration["registration_id"]
+    bl_type = Document.DocumentType.LOCAL_GOVT_BUSINESS_LICENSE.name
+    with patch(
+        "strr_api.services.document_service.DocumentService.upload_document",
+        return_value={"fileKey": "bl-bypass-key-01"},
+    ):
+        rv = client.post(
+            f"/registrations/{rid}/documents",
+            headers=headers_public_user(),
+            data={
+                "file": (BytesIO(b"bl-doc"), "bl.pdf"),
+                "documentType": bl_type,
+                "isUploadedFromAffectedMunicipality": "true",
+            },
+            content_type="multipart/form-data",
+        )
+    assert_status(rv, HTTPStatus.CREATED)
+    body = rv.get_json()
+    keys = {d.get("fileKey") for d in (body.get("documents") or [])}
+    assert "bl-bypass-key-01" in keys
+
+
+def test_post_registration_document_bl_type_still_requires_noc_without_municipality_flag(
+    client, headers_public_user, serializable_host_registration,
+):
+    """BL document type alone does not bypass NOC without affected-municipality flag."""
+    rid = serializable_host_registration["registration_id"]
+    bl_type = Document.DocumentType.LOCAL_GOVT_BUSINESS_LICENSE.name
+    rv = client.post(
+        f"/registrations/{rid}/documents",
+        headers=headers_public_user(),
+        data={
+            "file": (BytesIO(b"bl-doc"), "bl.pdf"),
+            "documentType": bl_type,
+        },
         content_type="multipart/form-data",
     )
     assert_status(rv, HTTPStatus.BAD_REQUEST)
