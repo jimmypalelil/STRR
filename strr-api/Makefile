@@ -42,8 +42,17 @@ fmt-check: ## Check isort and black without changing files
 	poetry run isort . --check
 	poetry run black . --check
 
-test: ## Unit testing
-	pytest
+test: ## Run full test suite (same as ``pytest`` / CI default)
+	poetry run pytest
+
+test-unit: ## Run unit tests only (``tests/unit``; no coverage gate)
+	poetry run pytest tests/unit
+
+test-integration: ## Run integration tests only (``tests/integration``; no coverage)
+	poetry run pytest tests/integration --no-cov
+
+test-integration-cov: ## Like ``test-integration`` but with coverage reports (term + htmlcov/)
+	poetry run pytest tests/integration --cov=src --cov-config=pyproject.toml --cov-report term-missing --cov-report html:htmlcov
 
 build: ## Build the docker container
 	docker build . -t $(DOCKER_NAME) \
