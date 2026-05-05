@@ -43,13 +43,13 @@ pytest_plugins = (
     "strr_test_utils.utils_fixtures",
     "strr_test_utils.db_fixtures",
     "strr_test_utils.redis_fixtures",
+    "strr_test_utils.client_fixtures",
     "strr_test_utils.parent_fixtures",
 )
 
 from sqlalchemy.orm import Session as AppSession
 
 from strr_api import db as _db
-from strr_api import jwt as _jwt
 from strr_api.config import Testing
 
 
@@ -70,23 +70,6 @@ def ld():
     """LaunchDarkly TestData source."""
     td = TestData.data_source()
     yield td
-
-
-@pytest.fixture(scope="function")
-def client(app):
-    """
-    Return a function-scoped test client.
-    This allows @patch decorators on individual tests to work correctly
-    without leaking state or context between tests.
-    """
-    with app.test_client() as client:
-        yield client
-
-
-@pytest.fixture(scope="session")
-def jwt():
-    """Return a session-wide jwt manager."""
-    return _jwt
 
 
 @pytest.fixture
