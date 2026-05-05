@@ -11,8 +11,8 @@ from strr_api.models.rental import Document
 from tests.integration.helpers import (
     assert_json_keys,
     assert_status,
+    protected_routes_with_prefix,
     resolve_path_for_unauth,
-    routes_with_prefix,
     unauthenticated_request,
 )
 from tests.integration.registration_seed import (
@@ -20,17 +20,15 @@ from tests.integration.registration_seed import (
     seed_registration_snapshot,
     seed_serializable_host_registration,
 )
-from tests.integration.route_registry import EXPECTED_STRR_API_ROUTES, PUBLIC_ROUTES
-
-_ROWS = routes_with_prefix(EXPECTED_STRR_API_ROUTES - PUBLIC_ROUTES, "/registrations")
-_ROW_IDS = [f"{m}_{r}".replace("/", "_").replace("<", "").replace(">", "") for m, r in _ROWS]
 
 
-@pytest.mark.parametrize("method,rule", _ROWS, ids=_ROW_IDS)
-def test_registrations_routes_require_auth_without_bearer(client, method, rule):
-    path = resolve_path_for_unauth(rule)
-    rv = unauthenticated_request(client, method, path)
-    assert rv.status_code == HTTPStatus.UNAUTHORIZED
+def test_registrations_routes_require_auth_without_bearer(client, app):
+    rows = protected_routes_with_prefix(app, "/registrations")
+    assert rows, "expected at least one protected /registrations route"
+    for method, rule in rows:
+        path = resolve_path_for_unauth(rule)
+        rv = unauthenticated_request(client, method, path)
+        assert rv.status_code == HTTPStatus.UNAUTHORIZED, f"{method} {rule}"
 
 
 def test_get_registrations_list_ok(client, jwt, integration_account_id):
