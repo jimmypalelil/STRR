@@ -1,26 +1,36 @@
+import type { StrrLoginIdp } from '~/types/strr-base-app-config'
+import { unwrapAppConfigList } from '~/utils/unwrap-app-config'
+
 function realmRolesFromToken (): string[] {
   const parsed = useNuxtApp().$keycloak?.tokenParsed as { realm_access?: { roles?: string[] } } | undefined
   return parsed?.realm_access?.roles ?? []
 }
 
+function buildAuthLoginUrl (publicBaseUrl: string, locale: string, invalidIdp: string): string {
+  const base = `${publicBaseUrl}${locale}/auth/login`
+  return `${base}?invalidIdp=${encodeURIComponent(invalidIdp)}`
+}
+
 export default defineNuxtRouteMiddleware(() => {
   const { isAuthenticated, kcUser, logout } = useKeycloak()
   const loginOptions = useAppConfig().strrBaseLayer.page.login.options
-  const allowedIdps = loginOptions.idps
-  const requiredRealmRoles = loginOptions.requiredRealmRoles?.filter(Boolean) ?? []
+  const allowedIdps = unwrapAppConfigList<StrrLoginIdp>(loginOptions.idps)
+  const requiredRealmRoles = unwrapAppConfigList(loginOptions.requiredRealmRoles).filter(Boolean)
 
-  if (!isAuthenticated.value) { // redirect to login page if user not authenticated
+  if (!isAuthenticated.value) {
     const localePath = useLocalePath()
     return navigateTo(localePath('/auth/login'))
   }
 
   const loginSource = kcUser.value.loginSource.toLowerCase()
   const locale = useNuxtApp().$i18n.locale.value
+  const publicBaseUrl = useRuntimeConfig().public.baseUrl
 
-  if (!(allowedIdps as readonly string[]).includes(loginSource)) { // log user out and redirect to login page if user authenticated with invalid login source
-    const redirectUrl =
-      useRuntimeConfig().public.baseUrl + locale + '/auth/login?invalidIdp=' + kcUser.value.loginSource
-    logout(redirectUrl)
+  const allowedLower = new Set(allowedIdps.map(idp => idp.toLowerCase()))
+  if (!allowedLower.has(loginSource)) {
+    logout(
+      buildAuthLoginUrl(publicBaseUrl, locale, kcUser.value.loginSource)
+    )
     return
   }
 
@@ -29,11 +39,6 @@ export default defineNuxtRouteMiddleware(() => {
     requiredRealmRoles.length > 0 &&
     !requiredRealmRoles.every((role: string) => realmRoles.includes(role))
   ) {
-    const redirectUrl =
-      useRuntimeConfig().public.baseUrl +
-      locale +
-      '/auth/login?missingRoles=' +
-      encodeURIComponent(requiredRealmRoles.join(','))
-    logout(redirectUrl)
+    logout(`${publicBaseUrl}${locale}/auth/login`)
   }
 })

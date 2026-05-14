@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { StrrLoginIdp } from '~/types/strr-base-app-config'
+import { unwrapAppConfigList } from '~/utils/unwrap-app-config'
+
 const { t, locale } = useNuxtApp().$i18n
 const keycloak = useKeycloak()
 const { createAccountUrl } = useConnectNav()
@@ -9,7 +12,24 @@ const redirectUrl = loginConfig.redirectPath
   ? runtimeConfig.public.baseUrl + locale.value + loginConfig.redirectPath
   : undefined
 
-const loginOptionsMap = {
+type RuntimeLoginOptions = typeof loginConfig.options & {
+  idps?: StrrLoginIdp[] | (() => StrrLoginIdp[])
+  loginButtonIdps?: StrrLoginIdp[] | (() => StrrLoginIdp[])
+}
+
+const loginOpts = (): RuntimeLoginOptions => loginConfig.options as RuntimeLoginOptions
+
+const allowedIdps = computed(() => unwrapAppConfigList<StrrLoginIdp>(loginOpts().idps))
+
+const loginOptionsMap: Record<
+  StrrLoginIdp,
+  {
+    label: string
+    subtext: string | undefined
+    icon: string
+    click: () => Promise<void>
+  }
+> = {
   bcsc: {
     label: t('label.continueBcsc'),
     subtext: loginConfig.options.bcscSubtext,
@@ -30,24 +50,63 @@ const loginOptionsMap = {
   }
 }
 
-const options = computed(() => {
-  const items = loginConfig.options.idps
-  const opts = loginConfig.options as typeof loginConfig.options & {
-    loginIdpButtonClass?: Partial<Record<'bcsc' | 'bceid' | 'idir', string>>
-    loginIdpButtonContainerClass?: Partial<Record<'bcsc' | 'bceid' | 'idir', string>>
+const idpKeysForButtons = computed((): StrrLoginIdp[] => {
+  const allowed = allowedIdps.value
+  const shown = unwrapAppConfigList(loginOpts().loginButtonIdps)
+  if (shown.length === 0) {
+    return [...allowed]
   }
-  const classByIdp = opts.loginIdpButtonClass
-  const containerClassByIdp = opts.loginIdpButtonContainerClass
-  return items.map(key => ({
-    ...loginOptionsMap[key],
-    buttonClass: classByIdp?.[key],
-    containerClass: containerClassByIdp?.[key]
-  }))
+  const filtered = shown.filter((k): k is StrrLoginIdp => allowed.includes(k))
+  return filtered.length > 0 ? filtered : [...allowed]
 })
+
+const options = computed(() =>
+  idpKeysForButtons.value.map(key => ({
+    ...loginOptionsMap[key]
+  }))
+)
 
 const isSessionExpired = sessionStorage.getItem(ConnectStorageKeys.CONNECT_SESSION_EXPIRED)
 
-// page stuff
+const IDP_QUERY = 'idp'
+const idpQueryLoginStarted = ref(false)
+
+const STRR_LOGIN_IDPS = ['bcsc', 'bceid', 'idir'] as const satisfies readonly StrrLoginIdp[]
+
+function parseIdpFromQuery (query: Record<string, unknown>): StrrLoginIdp | null {
+  const raw = query[IDP_QUERY]
+  const s = (Array.isArray(raw) ? raw[0] : raw)?.toString().toLowerCase().trim()
+  if (!s || !(STRR_LOGIN_IDPS as readonly string[]).includes(s)) {
+    return null
+  }
+  return s as StrrLoginIdp
+}
+
+function idpToKeycloakHint (idp: StrrLoginIdp) {
+  switch (idp) {
+    case 'bcsc':
+      return IdpHint.BCSC
+    case 'bceid':
+      return IdpHint.BCEID
+    case 'idir':
+      return IdpHint.IDIR
+  }
+}
+
+/** Deep link: `?idp=bceid` when that IdP is in allowed `idps`. */
+async function runLoginFromIdpQuery () {
+  if (idpQueryLoginStarted.value) {
+    return
+  }
+  const route = useRoute()
+  const idp = parseIdpFromQuery(route.query as Record<string, unknown>)
+  if (!idp || !allowedIdps.value.includes(idp)) {
+    return
+  }
+  idpQueryLoginStarted.value = true
+  await keycloak.login(idpToKeycloakHint(idp), redirectUrl)
+}
+
 useHead({
   title: t('page.login.h1')
 })
@@ -57,18 +116,13 @@ definePageMeta({
   hideBreadcrumbs: true
 })
 
-// show notification if user was redirected here with an invalid login
 onMounted(() => {
   const route = useRoute()
   const invalidIdp = route.query.invalidIdp
   if (invalidIdp && LoginSource[invalidIdp as LoginSource] !== undefined) {
     useToast().add({ title: t('toast.invalidIdp.generic') })
   }
-  const missingRoles = route.query.missingRoles
-  const missingRolesStr = Array.isArray(missingRoles) ? missingRoles[0] : missingRoles
-  if (missingRolesStr && String(missingRolesStr).length > 0) {
-    useToast().add({ title: t('toast.missingRealmRoles') })
-  }
+  runLoginFromIdpQuery().catch(() => {})
 })
 </script>
 <template>
@@ -100,14 +154,12 @@ onMounted(() => {
             v-for="(option, i) in options"
             :key="option.label"
             class="flex flex-col items-center gap-1"
-            :class="option.containerClass"
           >
             <UButton
               :variant="i === 0 ? 'solid' : 'outline'"
               block
               :icon="option.icon"
               :label="option.label"
-              :class="option.buttonClass"
               :ui="{
                 gap: { sm: 'gap-x-2.5' }
               }"

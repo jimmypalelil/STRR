@@ -44,12 +44,7 @@ export default defineAppConfig({
           createAccount: false,
           requiredRealmRoles: () => ['strr_examiner'],
           idps: () => ['idir', 'bceid'], // function required to overwrite default value, will merge if no function
-          loginIdpButtonContainerClass: {
-            bceid: 'absolute left-0 top-0 z-10 m-0 min-h-0 w-0 overflow-visible p-0'
-          },
-          loginIdpButtonClass: {
-            bceid: 'opacity-0 h-1 w-1 shrink-0 pointer-events-auto'
-          }
+          loginButtonIdps: () => ['idir']
         }
       }
     }

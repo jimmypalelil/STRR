@@ -9,7 +9,12 @@ export async function authSetup (
 ) {
   loadPlaywrightEnv()
   const browser: Browser = await chromium.launch()
-  const context = await browser.newContext()
+  const context = await browser.newContext({
+    recordVideo: {
+      dir: 'test-results/auth-setup',
+      size: { width: 1280, height: 720 }
+    }
+  })
   const page: Page = await context.newPage()
 
   const baseUrl = process.env.NUXT_BASE_URL
@@ -17,9 +22,8 @@ export async function authSetup (
     throw new Error('NUXT_BASE_URL is required for Playwright auth setup')
   }
 
-  await page.goto(baseUrl + 'en-CA/auth/login', { waitUntil: 'networkidle', timeout: 60_000 })
-
   if (loginMethod === LoginSource.IDIR) {
+    await page.goto(baseUrl + 'en-CA/auth/login', { waitUntil: 'networkidle', timeout: 60_000 })
     const username = process.env.PLAYWRIGHT_TEST_USERNAME
     const password = process.env.PLAYWRIGHT_TEST_PASSWORD
     if (!username?.trim() || !password) {
@@ -35,7 +39,14 @@ export async function authSetup (
     if (!username?.trim() || !password) {
       throw new Error('PLAYWRIGHT_TEST_BCEID_USERNAME and PLAYWRIGHT_TEST_BCEID_PASSWORD are required for BCeID e2e')
     }
-    await page.getByRole('button', { name: 'Continue with BCeID' }).click()
+    await page.goto(`${baseUrl}en-CA/auth/login?idp=bceid`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60_000
+    })
+    await page.waitForURL(
+      url => !url.pathname.includes('/auth/login'),
+      { timeout: 45_000 }
+    )
     await page.locator('#user').fill(username)
     await page.locator('#password').fill(password)
     const continueButton = page.getByRole('button', { name: 'Continue' })
