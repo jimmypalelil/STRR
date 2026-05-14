@@ -1,3 +1,5 @@
+type StrrLoginIdp = 'bcsc' | 'bceid' | 'idir'
+
 declare module 'nuxt/schema' {
   interface AppConfigInput {
     strrBaseLayer: {
@@ -6,7 +8,11 @@ declare module 'nuxt/schema' {
           redirectPath: string,
           options: {
             createAccount: boolean,
-            idps: Array<'bcsc' | 'bceid' | 'idir'>,
+            idps: Array<StrrLoginIdp>,
+            loginIdpButtonClass?: Partial<Record<StrrLoginIdp, string>>,
+            loginIdpButtonContainerClass?: Partial<Record<StrrLoginIdp, string>>,
+            /** If set, the JWT must include every listed role in `realm_access.roles`. */
+            requiredRealmRoles?: string[],
             bcscSubtext: string | undefined,
             bceidSubtext: string | undefined,
             idirSubtext: string | undefined
@@ -34,7 +40,11 @@ declare module 'nuxt/schema' {
           redirectPath: string,
           options: {
             createAccount: boolean,
-            idps: Array<'bcsc' | 'bceid' | 'idir'>,
+            idps: Array<StrrLoginIdp>,
+            loginIdpButtonClass?: Partial<Record<StrrLoginIdp, string>>,
+            loginIdpButtonContainerClass?: Partial<Record<StrrLoginIdp, string>>,
+            /** If set, the JWT must include every listed role in `realm_access.roles`. */
+            requiredRealmRoles?: string[],
             bcscSubtext: string | undefined,
             bceidSubtext: string | undefined,
             idirSubtext: string | undefined

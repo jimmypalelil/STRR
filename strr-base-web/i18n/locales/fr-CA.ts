@@ -190,7 +190,10 @@ export default {
     }
   },
   table: {},
-  toast: {},
+  toast: {
+    missingRealmRoles:
+      'Votre compte n\'a pas les accès requis pour cette application. Communiquez avec votre administrateur si vous avez besoin d\'aide.'
+  },
   widgets: {
     feeSummary: {
       title: 'Résumé des Frais',

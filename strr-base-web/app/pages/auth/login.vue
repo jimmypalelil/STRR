@@ -32,7 +32,17 @@ const loginOptionsMap = {
 
 const options = computed(() => {
   const items = loginConfig.options.idps
-  return items.map(key => loginOptionsMap[key]) // order by idps array
+  const opts = loginConfig.options as typeof loginConfig.options & {
+    loginIdpButtonClass?: Partial<Record<'bcsc' | 'bceid' | 'idir', string>>
+    loginIdpButtonContainerClass?: Partial<Record<'bcsc' | 'bceid' | 'idir', string>>
+  }
+  const classByIdp = opts.loginIdpButtonClass
+  const containerClassByIdp = opts.loginIdpButtonContainerClass
+  return items.map(key => ({
+    ...loginOptionsMap[key],
+    buttonClass: classByIdp?.[key],
+    containerClass: containerClassByIdp?.[key]
+  }))
 })
 
 const isSessionExpired = sessionStorage.getItem(ConnectStorageKeys.CONNECT_SESSION_EXPIRED)
@@ -49,9 +59,15 @@ definePageMeta({
 
 // show notification if user was redirected here with an invalid login
 onMounted(() => {
-  const invalidIdp = useRoute().query.invalidIdp
+  const route = useRoute()
+  const invalidIdp = route.query.invalidIdp
   if (invalidIdp && LoginSource[invalidIdp as LoginSource] !== undefined) {
     useToast().add({ title: t('toast.invalidIdp.generic') })
+  }
+  const missingRoles = route.query.missingRoles
+  const missingRolesStr = Array.isArray(missingRoles) ? missingRoles[0] : missingRoles
+  if (missingRolesStr && String(missingRolesStr).length > 0) {
+    useToast().add({ title: t('toast.missingRealmRoles') })
   }
 })
 </script>
@@ -84,12 +100,14 @@ onMounted(() => {
             v-for="(option, i) in options"
             :key="option.label"
             class="flex flex-col items-center gap-1"
+            :class="option.containerClass"
           >
             <UButton
               :variant="i === 0 ? 'solid' : 'outline'"
               block
               :icon="option.icon"
               :label="option.label"
+              :class="option.buttonClass"
               :ui="{
                 gap: { sm: 'gap-x-2.5' }
               }"

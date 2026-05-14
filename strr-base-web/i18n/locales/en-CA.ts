@@ -462,7 +462,9 @@ export default {
       IDIR: '',
       BCSC: '',
       BCEID: ''
-    }
+    },
+    missingRealmRoles:
+      'Your account does not have the required access for this application. Contact your administrator if you need help.'
   },
   validation: {
     required: 'Required',
