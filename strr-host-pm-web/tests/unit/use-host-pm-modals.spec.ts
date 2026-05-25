@@ -33,6 +33,10 @@ vi.mock('@/stores/document', () => ({
   useDocumentStore: vi.fn(() => ({ resetApiDocs: mockResetApiDocs }))
 }))
 
+async function closeModalAndFlushLeave () {
+  await modal?.props.onAfterLeave()
+}
+
 describe('useHostPmModals composable', () => {
   beforeEach(() => {
     // reset state for each test
@@ -70,12 +74,14 @@ describe('useHostPmModals composable', () => {
     expect(modal?.props.title).toBe($t('modal.removeUnitAddress.title'))
   })
 
-  it('should reset stores and close modal when confirm action is triggered', async () => {
+  it('should reset stores after the restart modal closes', async () => {
     const { openConfirmRestartApplicationModal } = useHostPmModals()
     openConfirmRestartApplicationModal()
     const confirmAction = modal?.props.actions
       .find((a: any) => a.label === $t('modal.editUnitAddress.confirmBtn'))
-    await confirmAction.handler()
+    confirmAction.handler()
+    expect(mockReqReset).not.toHaveBeenCalled()
+    await closeModalAndFlushLeave()
     expect(mockReqReset).toHaveBeenCalled()
     expect(mockPropReset).toHaveBeenCalled()
     expect(mockResetApiDocs).toHaveBeenCalled()
@@ -102,6 +108,7 @@ describe('useHostPmModals composable', () => {
     const promise = openConfirmUnsavedChanges()
     const confirmBtn = modal?.props.actions.find((a: any) => a.label === $t('modal.unsavedChanges.confirmBtn'))
     confirmBtn.handler()
+    await closeModalAndFlushLeave()
     await expect(promise).resolves.toBe(true)
   })
 
@@ -110,6 +117,7 @@ describe('useHostPmModals composable', () => {
     const promise = openConfirmUnsavedChanges()
     const closeBtn = modal?.props.actions.find((a: any) => a.label === $t('modal.unsavedChanges.closeBtn'))
     closeBtn.handler()
+    await closeModalAndFlushLeave()
     await expect(promise).resolves.toBe(false)
   })
 
@@ -120,29 +128,50 @@ describe('useHostPmModals composable', () => {
     expect(modal?.props.actions[0].label).toBe($t('btn.closeBtn'))
   })
 
-  describe('openConfirmProceedToPay modal on step 4 of the Application form', () => {
-    it('should open a modal with two actions', () => {
-      const { openConfirmProceedToPay } = useHostPmModals()
-      const result = openConfirmProceedToPay()
+  describe('openConfirmProceedToPayAndRun', () => {
+    it('opens proceed-to-pay modal with two actions', () => {
+      const { openConfirmProceedToPayAndRun } = useHostPmModals()
+      const result = openConfirmProceedToPayAndRun(vi.fn(), vi.fn())
       expect(result).toBeInstanceOf(Promise)
-      expect(mockModalOpen).toHaveBeenCalled()
+      expect(modal?.props.title).toBe($t('modal.proceedToPay.title'))
       expect(modal?.props.actions).toHaveLength(2)
     })
 
-    it('should resolve false when the first action is clicked', async () => {
-      const { openConfirmProceedToPay } = useHostPmModals()
-      const promise = openConfirmProceedToPay()
-      modal?.props.actions[0].handler() // simulate clicking on first button
-      await expect(promise).resolves.toBe(false)
-      expect(mockModalClose).toHaveBeenCalled()
+    it('runs onConfirm after the confirm modal closes', async () => {
+      const onConfirm = vi.fn().mockResolvedValue(undefined)
+      const onError = vi.fn()
+      const { openConfirmProceedToPayAndRun } = useHostPmModals()
+      const promise = openConfirmProceedToPayAndRun(onConfirm, onError)
+      modal?.props.actions[1].handler()
+      expect(onConfirm).not.toHaveBeenCalled()
+      await closeModalAndFlushLeave()
+      await expect(promise).resolves.toBe(true)
+      expect(onConfirm).toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
     })
 
-    it('should resolve true when the second action is clicked', async () => {
-      const { openConfirmProceedToPay } = useHostPmModals()
-      const promise = openConfirmProceedToPay()
-      modal?.props.actions[1].handler() // simulate clicking on second button
+    it('calls onError after the confirm modal closes when onConfirm fails', async () => {
+      const submitError = new Error('409')
+      const onConfirm = vi.fn().mockRejectedValue(submitError)
+      const onError = vi.fn()
+      const { openConfirmProceedToPayAndRun } = useHostPmModals()
+      const promise = openConfirmProceedToPayAndRun(onConfirm, onError)
+      modal?.props.actions[1].handler()
+      await closeModalAndFlushLeave()
       await expect(promise).resolves.toBe(true)
-      expect(mockModalClose).toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledWith(submitError)
+    })
+
+    it('resolves false when cancelled', async () => {
+      const onConfirm = vi.fn()
+      const onError = vi.fn()
+      const { openConfirmProceedToPayAndRun } = useHostPmModals()
+      const promise = openConfirmProceedToPayAndRun(onConfirm, onError)
+      modal?.props.actions[0].handler()
+      await closeModalAndFlushLeave()
+      await expect(promise).resolves.toBe(false)
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
     })
   })
 

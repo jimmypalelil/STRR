@@ -143,18 +143,15 @@ export const useStrrModals = () => {
     cancelButtonLabel: string = t('btn.cancel'),
     hideCancelButton?: boolean
   ) {
-    const modalActions: { label: string; variant?: string; handler: () => void }[] = [
-      { label: confirmButtonLabel, handler: () => confirmHandler() }
-    ]
-    if (!hideCancelButton) {
-      modalActions.unshift({ label: cancelButtonLabel, variant: 'outline', handler: () => close() })
-    }
-
-    modal.open(ModalBase, {
+    const { openConfirmAndRun } = useConfirmModal()
+    openConfirmAndRun({
       title,
       content,
-      actions: modalActions
-    })
+      confirmLabel: confirmButtonLabel,
+      cancelLabel: cancelButtonLabel,
+      hideCancel: hideCancelButton,
+      onConfirm: confirmHandler
+    }).catch(() => {})
   }
 
   function close () {

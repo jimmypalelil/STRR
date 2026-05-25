@@ -13,7 +13,7 @@ const { unitDetails } = storeToRefs(propertyStore)
 const { showUnitDetailsForm, prRequirements } = storeToRefs(propertyReqStore)
 const { validateOwners } = useHostOwnerStore()
 const documentsStore = useDocumentStore()
-const { openConfirmUnsavedChanges, openConfirmProceedToPay } = useHostPmModals()
+const { openConfirmUnsavedChanges, openConfirmProceedToPayAndRun } = useHostPmModals()
 const {
   submitApplication,
   validateUserConfirmation,
@@ -263,20 +263,25 @@ const handleSubmit = async () => {
       return
     }
 
-    const confirmed = await openConfirmProceedToPay()
+    const confirmed = await openConfirmProceedToPayAndRun(
+      async () => {
+        shouldSkipConfirmModal = true
+        const result = await runWithSubmitLock(() =>
+          submitApplication(false, effectiveApplicationNumber.value)
+        )
+        if (result === undefined) {
+          return
+        }
+        await finalizeSuccessfulSubmit(result)
+      },
+      (e) => {
+        logFetchError(e, 'Error creating host application')
+        strrModal.openAppSubmitError(e)
+      }
+    )
     if (!confirmed) {
       shouldSkipConfirmModal = false
-      return
     }
-
-    shouldSkipConfirmModal = true
-    const result = await runWithSubmitLock(() =>
-      submitApplication(false, effectiveApplicationNumber.value)
-    )
-    if (result === undefined) {
-      return
-    }
-    await finalizeSuccessfulSubmit(result)
   } catch (e) {
     logFetchError(e, 'Error creating host application')
     strrModal.openAppSubmitError(e)

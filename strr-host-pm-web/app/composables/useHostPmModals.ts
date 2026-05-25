@@ -7,10 +7,20 @@ import SupportingDocumentsHelp from '~/components/modal/info/SupportingDocuments
 
 export const useHostPmModals = () => {
   const modal = useModal()
+  const { openConfirm, openConfirmAndRun } = useConfirmModal()
   const { t } = useNuxtApp().$i18n
   const reqStore = usePropertyReqStore()
   const propStore = useHostPropertyStore()
   const docStore = useDocumentStore()
+
+  function proceedToPayModalOptions () {
+    return {
+      title: t('modal.proceedToPay.title'),
+      content: t('modal.proceedToPay.content'),
+      confirmLabel: t('modal.proceedToPay.confirmBtn'),
+      cancelLabel: t('modal.proceedToPay.closeBtn')
+    }
+  }
 
   function openHelpCreateAccountModal () {
     modal.open(ModalBase, {
@@ -21,28 +31,18 @@ export const useHostPmModals = () => {
     })
   }
 
-  // TODO reset stepper 'isComplete' when application state being reset
-  function openConfirmRestartApplicationModal (edit = true) { // maybe update edit param for different actions
-    modal.open(ModalBase, {
+  function openConfirmRestartApplicationModal (edit = true) {
+    openConfirmAndRun({
       title: edit ? t('modal.editUnitAddress.title') : t('modal.removeUnitAddress.title'),
       content: edit ? t('modal.editUnitAddress.content') : t('modal.removeUnitAddress.content'),
-      actions: [
-        {
-          label: t('btn.cancel'),
-          handler: () => close(),
-          variant: 'outline'
-        },
-        {
-          label: edit ? t('modal.editUnitAddress.confirmBtn') : t('modal.removeUnitAddress.confirmBtn'),
-          handler: async () => {
-            reqStore.$reset()
-            propStore.$reset()
-            await docStore.resetApiDocs()
-            close()
-          } // TODO: reset other form state as well ?
-        }
-      ]
-    })
+      confirmLabel: edit ? t('modal.editUnitAddress.confirmBtn') : t('modal.removeUnitAddress.confirmBtn'),
+      cancelLabel: t('btn.cancel'),
+      onConfirm: async () => {
+        reqStore.$reset()
+        propStore.$reset()
+        await docStore.resetApiDocs()
+      }
+    }).catch(() => {})
   }
 
   function openStrataRegNumberHelpModal () {
@@ -55,56 +55,26 @@ export const useHostPmModals = () => {
     })
   }
 
-  function openConfirmProceedToPay (): Promise<boolean> {
-    return new Promise<boolean>((resolve) => {
-      const resolveAndClose = (value: boolean) => {
-        resolve(value)
-        close()
-      }
-
-      modal.open(ModalBase, {
-        title: t('modal.proceedToPay.title'),
-        content: t('modal.proceedToPay.content'),
-        actions: [
-          {
-            label: t('modal.proceedToPay.closeBtn'),
-            handler: () => resolveAndClose(false),
-            variant: 'outline'
-          },
-          {
-            label: t('modal.proceedToPay.confirmBtn'),
-            handler: () => resolveAndClose(true)
-          }
-        ]
-      })
+  function openConfirmProceedToPayAndRun (
+    onConfirm: () => Promise<void>,
+    onError: (error: unknown) => void
+  ): Promise<boolean> {
+    return openConfirmAndRun({
+      ...proceedToPayModalOptions(),
+      onConfirm,
+      onError
     })
   }
 
   function openConfirmUnsavedChanges () {
-    return new Promise<boolean>((resolve) => {
-      const resolveAndClose = (value: boolean) => {
-        resolve(value)
-        close()
-      }
-
-      const modalActions = [
-        {
-          label: t('modal.unsavedChanges.confirmBtn'),
-          variant: 'outline',
-          handler: () => resolveAndClose(true)
-        },
-        {
-          label: t('modal.unsavedChanges.closeBtn'),
-          variant: 'solid',
-          handler: () => resolveAndClose(false)
-        }
-      ]
-
-      modal.open(ModalBase, {
-        title: t('modal.unsavedChanges.title'),
-        content: t('modal.unsavedChanges.content'),
-        actions: modalActions
-      })
+    return openConfirm({
+      title: t('modal.unsavedChanges.title'),
+      content: t('modal.unsavedChanges.content'),
+      confirmLabel: t('modal.unsavedChanges.confirmBtn'),
+      cancelLabel: t('modal.unsavedChanges.closeBtn'),
+      confirmFirst: true,
+      confirmVariant: 'outline',
+      cancelVariant: 'solid'
     })
   }
 
@@ -126,7 +96,7 @@ export const useHostPmModals = () => {
     openHelpCreateAccountModal,
     openConfirmRestartApplicationModal,
     openStrataRegNumberHelpModal,
-    openConfirmProceedToPay,
+    openConfirmProceedToPayAndRun,
     openConfirmUnsavedChanges,
     openSupportingDocumentsHelpModal,
     close

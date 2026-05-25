@@ -28,9 +28,33 @@ const {
   }
 })
 
-const submitApplicationMock = vi.fn()
-const openAppSubmitErrorMock = vi.fn()
-let lastButtonControl: { leftButtons: { action: () => void | Promise<void> }[] } | null = null
+const {
+  submitApplicationMock,
+  openAppSubmitErrorMock,
+  openConfirmProceedToPayAndRunMock,
+  validValidationStep
+} = vi.hoisted(() => {
+  const validStep = [{ formId: 'test', success: true, errors: [] }]
+  return {
+    validValidationStep: validStep,
+    submitApplicationMock: vi.fn(),
+    openAppSubmitErrorMock: vi.fn(),
+    openConfirmProceedToPayAndRunMock: vi.fn(
+      async (onConfirm: () => Promise<void>, onError: (e: unknown) => void) => {
+        try {
+          await onConfirm()
+        } catch (e) {
+          onError(e)
+        }
+        return true
+      }
+    )
+  }
+})
+let lastButtonControl: {
+  leftButtons: { action: () => void | Promise<void> }[]
+  rightButtons: { action: () => void | Promise<void> }[]
+} | null = null
 
 const duplicateRenewalError = {
   statusCode: 409,
@@ -80,9 +104,9 @@ vi.mock('@/stores/hostProperty', () => ({
     unitAddress: { address: mockApplication.registration.unitAddress },
     unitDetails: ref(mockApplication.registration.unitDetails),
     blInfo: ref({ businessLicense: '', businessLicenseExpiryDate: '' }),
-    validateUnitAddress: () => true,
-    validateUnitDetails: () => true,
-    validateBusinessLicense: () => true,
+    validateUnitAddress: () => validValidationStep,
+    validateUnitDetails: () => validValidationStep,
+    validateBusinessLicense: () => validValidationStep,
     $reset: vi.fn()
   })
 }))
@@ -92,14 +116,14 @@ vi.mock('@/stores/propertyRequirements', () => ({
     showUnitDetailsForm: ref(true),
     prRequirements: ref({ isPropertyPrExempt: false, prExemptionReason: undefined }),
     propertyReqs: ref({}),
-    validateBlExemption: () => true,
-    validatePrRequirements: () => true,
+    validateBlExemption: () => validValidationStep,
+    validatePrRequirements: () => validValidationStep,
     $reset: vi.fn()
   })
 }))
 
 vi.mock('@/stores/hostOwner', () => ({
-  useHostOwnerStore: () => ({ validateOwners: () => true, $reset: vi.fn() })
+  useHostOwnerStore: () => ({ validateOwners: () => validValidationStep, $reset: vi.fn() })
 }))
 
 vi.mock('@/stores/document', () => ({
@@ -114,7 +138,8 @@ vi.mock('@/stores/document', () => ({
 vi.mock('@/stores/hostApplication', () => ({
   useHostApplicationStore: () => ({
     submitApplication: submitApplicationMock,
-    validateUserConfirmation: () => true,
+    validateUserConfirmation: (returnBool = false) =>
+      returnBool ? true : validValidationStep,
     $reset: vi.fn()
   })
 }))
@@ -149,8 +174,9 @@ vi.mock('@/composables/useConnectNav', () => ({
   useConnectNav: () => ({ handlePaymentRedirect: vi.fn() })
 }))
 
-vi.mock('@/composables/useHostPmModals', () => ({
-  useHostPmModals: () => ({ openConfirmUnsavedChanges: vi.fn().mockResolvedValue(true) })
+mockNuxtImport('useHostPmModals', () => () => ({
+  openConfirmUnsavedChanges: vi.fn().mockResolvedValue(true),
+  openConfirmProceedToPayAndRun: openConfirmProceedToPayAndRunMock
 }))
 
 const draftSaveStubs = applicationPageStubs
@@ -176,6 +202,7 @@ describe('Application page — renewal draft save', () => {
     isRegistrationRenewalRef.value = false
     submitApplicationMock.mockReset()
     openAppSubmitErrorMock.mockReset()
+    openConfirmProceedToPayAndRunMock.mockClear()
     submitApplicationMock.mockResolvedValue({
       paymentToken: '',
       filingId: 'NEW-DRAFT-ID',
@@ -227,5 +254,23 @@ describe('Application page — renewal draft save', () => {
     expect(submitApplicationMock).toHaveBeenCalledWith(true, undefined)
     expect(openAppSubmitErrorMock).toHaveBeenCalledWith(duplicateRenewalError)
     expect(replaceMock).not.toHaveBeenCalled()
+  }, 10000)
+
+  it('routes proceed-to-pay submit 409 through onError callback', async () => {
+    submitApplicationMock.mockRejectedValue(duplicateRenewalError)
+
+    await mountRenewalApplication()
+    await flushPromises()
+
+    await openConfirmProceedToPayAndRunMock(
+      async () => {
+        await submitApplicationMock(false, undefined)
+      },
+      openAppSubmitErrorMock
+    )
+    await flushPromises()
+
+    expect(submitApplicationMock).toHaveBeenCalledWith(false, undefined)
+    expect(openAppSubmitErrorMock).toHaveBeenCalledWith(duplicateRenewalError)
   }, 10000)
 })
