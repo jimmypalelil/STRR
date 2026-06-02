@@ -1803,7 +1803,7 @@
                 "notes"
               ]
             },
-            "description": "List examiner notes for an application. Staff only (STRR_EXAMINER or STRR_INVESTIGATOR role required). Returns notes newest first, maximum 500."
+            "description": "List examiner notes for an application. Examiner only (STRR_EXAMINER role required). Returns notes newest first, maximum 500."
           },
           "response": []
         },
@@ -1848,7 +1848,7 @@
                 "notes"
               ]
             },
-            "description": "Create an examiner note on an application. Staff only (STRR_EXAMINER or STRR_INVESTIGATOR role required). Note body must be 1-4000 characters. Blocked on certain application statuses (DRAFT, PAYMENT_DUE, PAID, AUTO_APPROVED, PROVISIONALLY_APPROVED, FULL_REVIEW_APPROVED, ADDITIONAL_INFO_REQUESTED) and if application is linked to a registration."
+            "description": "Create an examiner note on an application. Examiner only (STRR_EXAMINER role required). Note body must be 1-4000 characters. Blocked on certain application statuses (DRAFT, PAYMENT_DUE, PAID, AUTO_APPROVED, PROVISIONALLY_APPROVED, FULL_REVIEW_APPROVED, ADDITIONAL_INFO_REQUESTED) and if application is linked to a registration."
           },
           "response": []
         }
@@ -2644,7 +2644,7 @@
                 "notes"
               ]
             },
-            "description": "List examiner notes for a registration. Staff only (STRR_EXAMINER or STRR_INVESTIGATOR role required). Returns notes newest first, maximum 500."
+            "description": "List examiner notes for a registration. Examiner only (STRR_EXAMINER role required). Returns notes newest first, maximum 500."
           },
           "response": []
         },
@@ -2689,7 +2689,7 @@
                 "notes"
               ]
             },
-            "description": "Create an examiner note on a registration. Staff only (STRR_EXAMINER or STRR_INVESTIGATOR role required). Note body must be 1-4000 characters. No status restrictions."
+            "description": "Create an examiner note on a registration. Examiner only (STRR_EXAMINER role required). Note body must be 1-4000 characters. No status restrictions."
           },
           "response": []
         }

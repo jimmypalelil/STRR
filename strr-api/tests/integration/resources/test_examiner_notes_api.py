@@ -20,7 +20,7 @@ from tests.utils.examiner_notes_helpers import (
     request_notes,
 )
 
-STAFF_HEADER_FIXTURES = ("headers_strr_examiner", "headers_strr_investigator")
+STAFF_HEADER_FIXTURES = ("headers_strr_examiner",)
 STAFF_ROLE_RESOURCE_CASES = [
     pytest.param(headers_fixture, resource, id=f"{headers_fixture}-{resource}")
     for headers_fixture in STAFF_HEADER_FIXTURES
@@ -31,6 +31,10 @@ DENIED_INTEGRATION_CASES = [
     pytest.param("headers_system", APPLICATION, "GET", id="system-application-get"),
     pytest.param("headers_system", APPLICATION, "POST", id="system-application-post"),
     pytest.param("headers_system", REGISTRATION, "GET", id="system-registration-get"),
+    pytest.param("headers_strr_investigator", APPLICATION, "GET", id="investigator-application-get"),
+    pytest.param("headers_strr_investigator", APPLICATION, "POST", id="investigator-application-post"),
+    pytest.param("headers_strr_investigator", REGISTRATION, "GET", id="investigator-registration-get"),
+    pytest.param("headers_strr_investigator", REGISTRATION, "POST", id="investigator-registration-post"),
 ]
 
 POST_REJECTION_CASES = [

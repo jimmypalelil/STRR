@@ -477,10 +477,10 @@ def get_registration_events(registration_id):
 @swag_from({"security": [{"Bearer": []}]})
 @cross_origin(origin="*")
 @jwt.requires_auth
-@jwt.has_one_of_roles([Role.STRR_EXAMINER.value, Role.STRR_INVESTIGATOR.value])
+@jwt.has_one_of_roles([Role.STRR_EXAMINER.value])
 def get_registration_notes(registration_id):
     """
-    List examiner notes for a registration (staff only).
+    List examiner notes for a registration (examiner only).
     ---
     tags:
       - registration
@@ -525,10 +525,10 @@ def get_registration_notes(registration_id):
 @swag_from({"security": [{"Bearer": []}]})
 @cross_origin(origin="*")
 @jwt.requires_auth
-@jwt.has_one_of_roles([Role.STRR_EXAMINER.value, Role.STRR_INVESTIGATOR.value])
+@jwt.has_one_of_roles([Role.STRR_EXAMINER.value])
 def create_registration_note(registration_id):
     """
-    Create an examiner note on a registration (staff only).
+    Create an examiner note on a registration (examiner only).
     ---
     tags:
       - registration
@@ -557,7 +557,7 @@ def create_registration_note(registration_id):
       401:
         description:
       403:
-        description: Not STRR staff
+        description: Not STRR examiner
       404:
         description: Registration not found
     """

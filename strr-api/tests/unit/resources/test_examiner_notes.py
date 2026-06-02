@@ -1,5 +1,6 @@
 # Copyright © 2024 Province of British Columbia
 """Resource tests for examiner notes endpoints."""
+
 from datetime import datetime, timedelta
 from http import HTTPStatus
 
@@ -22,7 +23,7 @@ from tests.utils.examiner_notes_helpers import (
     request_notes,
 )
 
-STAFF_ROLES = (STRR_EXAMINER, STRR_INVESTIGATOR)
+STAFF_ROLES = (STRR_EXAMINER,)
 STAFF_ROLE_RESOURCE_CASES = [
     pytest.param(role, resource, id=f"{role}-{resource}")
     for role in STAFF_ROLES
@@ -33,6 +34,10 @@ UNIT_DENIED_ROLE_CASES = [
     pytest.param((SYSTEM_ROLE,), APPLICATION, "GET", id="system-application-get"),
     pytest.param((SYSTEM_ROLE,), APPLICATION, "POST", id="system-application-post"),
     pytest.param((SYSTEM_ROLE,), REGISTRATION, "GET", id="system-registration-get"),
+    pytest.param((STRR_INVESTIGATOR,), APPLICATION, "GET", id="investigator-application-get"),
+    pytest.param((STRR_INVESTIGATOR,), APPLICATION, "POST", id="investigator-application-post"),
+    pytest.param((STRR_INVESTIGATOR,), REGISTRATION, "GET", id="investigator-registration-get"),
+    pytest.param((STRR_INVESTIGATOR,), REGISTRATION, "POST", id="investigator-registration-post"),
 ]
 
 POST_REJECTION_CASES = [

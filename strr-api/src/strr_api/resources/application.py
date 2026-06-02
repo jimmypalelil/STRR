@@ -645,10 +645,10 @@ def get_application_events(application_number):
 @swag_from({"security": [{"Bearer": []}]})
 @cross_origin(origin="*")
 @jwt.requires_auth
-@jwt.has_one_of_roles([Role.STRR_EXAMINER.value, Role.STRR_INVESTIGATOR.value])
+@jwt.has_one_of_roles([Role.STRR_EXAMINER.value])
 def get_application_notes(application_number):
     """
-    List examiner notes for an application (staff only).
+    List examiner notes for an application (examiner only).
     ---
     tags:
       - application
@@ -664,7 +664,7 @@ def get_application_notes(application_number):
       401:
         description:
       403:
-        description: Not STRR staff
+        description: Not STRR examiner
       404:
         description: Application not found
     """
@@ -693,10 +693,10 @@ def get_application_notes(application_number):
 @swag_from({"security": [{"Bearer": []}]})
 @cross_origin(origin="*")
 @jwt.requires_auth
-@jwt.has_one_of_roles([Role.STRR_EXAMINER.value, Role.STRR_INVESTIGATOR.value])
+@jwt.has_one_of_roles([Role.STRR_EXAMINER.value])
 def create_application_note(application_number):
     """
-    Create an examiner note on an application (staff only).
+    Create an examiner note on an application (examiner only).
     ---
     tags:
       - application
@@ -725,7 +725,7 @@ def create_application_note(application_number):
       401:
         description:
       403:
-        description: Not STRR staff
+        description: Not STRR examiner
       404:
         description: Application not found
       422:
