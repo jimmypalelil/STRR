@@ -1,5 +1,6 @@
 """Integration tests for public/account ``/registrations`` read paths and auth smoke."""
 
+import json
 from http import HTTPStatus
 from io import BytesIO
 from unittest.mock import patch
@@ -7,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from strr_api.enums.enum import ErrorMessage, RegistrationNocStatus
+from strr_api.models import Events
 from strr_api.models.rental import Document
 from tests.integration.helpers import (
     assert_json_keys,
@@ -289,3 +291,111 @@ def test_post_registration_document_bl_type_still_requires_noc_without_municipal
     err = rv.get_json()
     assert err is not None
     assert ErrorMessage.REGISTRATION_DOCUMENT_UPLOAD_NOC_STATUS.value in (err.get("message") or "")
+
+
+def test_patch_registration_email_ok(client, session, headers_public_user, serializable_host_registration):
+    """Test updating registration email via PATCH endpoint."""
+    rid = serializable_host_registration["registration_id"]
+
+    update_data = {"primaryContact": {"emailAddress": "updated@example.com"}}
+    rv = client.patch(f"/registrations/{rid}", headers=headers_public_user(), json=update_data)
+
+    assert_status(rv, HTTPStatus.OK)
+    data = assert_json_keys(rv, "id", "primaryContact")
+    assert data["id"] == rid
+    assert data["primaryContact"]["emailAddress"] == "updated@example.com"
+
+    # Verify event was created
+    events = Events.fetch_registration_events(rid, applicant_visible_events_only=False)
+    registration_updated_events = [e for e in events if e.event_name == Events.EventName.REGISTRATION_UPDATED]
+    assert len(registration_updated_events) == 1
+
+    event = registration_updated_events[0]
+    assert event.visible_to_applicant is True
+    details = json.loads(event.details)
+    assert "changes" in details
+    assert len(details["changes"]) == 1
+    change = details["changes"][0]
+    assert change["field"] == "primaryContact.emailAddress"
+    assert change["newValue"] == "updated@example.com"
+
+
+def test_patch_registration_email_not_found_wrong_account(client, session, headers_public_user, random_string):
+    """Test that updating registration from different account returns 404."""
+    other = seed_serializable_host_registration(
+        session,
+        account_id=999_999_999,
+        registration_number=f"OTH{random_string(8).upper()}",
+    )
+    session.flush()
+
+    update_data = {"primaryContact": {"emailAddress": "hacker@example.com"}}
+    rv = client.patch(f"/registrations/{other['registration_id']}", headers=headers_public_user(), json=update_data)
+
+    assert_status(rv, HTTPStatus.NOT_FOUND)
+
+
+def test_patch_registration_email_not_found_unknown_id(client, headers_public_user):
+    """Test updating non-existent registration returns 404."""
+    update_data = {"primaryContact": {"emailAddress": "test@example.com"}}
+    rv = client.patch("/registrations/999999999", headers=headers_public_user(), json=update_data)
+
+    assert_status(rv, HTTPStatus.NOT_FOUND)
+
+
+def test_patch_registration_invalid_email_format(client, headers_public_user, serializable_host_registration):
+    """Test that invalid email format is rejected."""
+    rid = serializable_host_registration["registration_id"]
+
+    update_data = {"primaryContact": {"emailAddress": "not-an-email"}}
+    rv = client.patch(f"/registrations/{rid}", headers=headers_public_user(), json=update_data)
+
+    assert_status(rv, HTTPStatus.BAD_REQUEST)
+
+
+def test_patch_registration_empty_body(client, headers_public_user, serializable_host_registration):
+    """Test that empty update body is rejected."""
+    rid = serializable_host_registration["registration_id"]
+
+    rv = client.patch(f"/registrations/{rid}", headers=headers_public_user(), json={})
+
+    assert_status(rv, HTTPStatus.BAD_REQUEST)
+
+
+def test_patch_registration_no_change_no_event(client, session, headers_public_user, serializable_host_registration):
+    """Test that updating with same email value doesn't create an event."""
+    from strr_api.models.rental import Registration as RegistrationModel
+
+    rid = serializable_host_registration["registration_id"]
+
+    # Get the registration and check current email
+    reg = session.get(RegistrationModel, rid)
+    # Get email from registration_json if it exists, otherwise from the Contact table
+    if reg.registration_json and reg.registration_json.get("primaryContact", {}).get("emailAddress"):
+        current_email = reg.registration_json["primaryContact"]["emailAddress"]
+    else:
+        # Get from the database Contact table
+        primary_contact = [c for c in reg.rental_property.contacts if c.is_primary][0]
+        current_email = primary_contact.contact.email
+
+    # Update with same email
+    update_data = {"primaryContact": {"emailAddress": current_email}}
+    rv = client.patch(f"/registrations/{rid}", headers=headers_public_user(), json=update_data)
+
+    assert_status(rv, HTTPStatus.OK)
+
+    # Verify no REGISTRATION_UPDATED event was created
+    events = Events.fetch_registration_events(rid, applicant_visible_events_only=False)
+    registration_updated_events = [e for e in events if e.event_name == Events.EventName.REGISTRATION_UPDATED]
+    assert len(registration_updated_events) == 0
+
+
+def test_patch_registration_unauthorized_without_auth(client, serializable_host_registration):
+    """Test that PATCH endpoint requires authentication."""
+    rid = serializable_host_registration["registration_id"]
+
+    update_data = {"primaryContact": {"emailAddress": "test@example.com"}}
+    rv = client.patch(f"/registrations/{rid}", json=update_data)
+
+    assert_status(rv, HTTPStatus.UNAUTHORIZED)
+
