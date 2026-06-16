@@ -148,6 +148,8 @@ export default {
       secondarySuite: 'Secondary Suite',
       singleFamily: 'Single Family Home',
       host: 'Host',
+      editHostEmail: 'Edit Host Email',
+      editHostEmailDescription: 'Update the host primary contact email for this registration.',
       strataHotel: 'Strata Hotel',
       platform: 'Platform',
       townHome: 'Town Home',

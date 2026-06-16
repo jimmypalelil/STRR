@@ -1,5 +1,7 @@
 <script setup lang="ts">
 
+import { useFilingHistory } from '~/composables/useFilingHistory'
+
 defineEmits<{ close: [void] }>()
 
 const { t } = useI18n()
