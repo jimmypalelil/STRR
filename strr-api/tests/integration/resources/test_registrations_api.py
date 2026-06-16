@@ -197,8 +197,17 @@ def test_get_registration_events_item_shape(client, session, headers_public_user
     body = rv.get_json()
     assert isinstance(body, list)
     assert len(body) >= 1
-    for item in body:
-        assert set(item.keys()) >= {"eventType", "eventName", "message", "createdDate"}
+    seeded_event = next((e for e in body if e.get("eventName") == "REGISTRATION_CREATED"), body[0])
+    assert set(seeded_event.keys()) >= {
+        "eventType",
+        "eventName",
+        "message",
+        "createdDate",
+        "details",
+        "structuredDetails",
+    }
+    assert seeded_event["details"] == "Integration seed event"
+    assert seeded_event["structuredDetails"] is None
 
 
 def test_post_registration_document_rejected_without_noc(client, headers_public_user, serializable_host_registration):
