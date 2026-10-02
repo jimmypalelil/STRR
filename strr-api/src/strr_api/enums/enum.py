@@ -90,7 +90,7 @@ class Role(Enum):
     STRR_TESTER = "strr_tester"
 
 
-class RegistrationStatus(Enum):
+class RegistrationStatus(str, Enum):
     """STRR Registration Status."""
 
     ACTIVE = "ACTIVE"

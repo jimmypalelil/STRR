@@ -47,6 +47,7 @@ from typing import Optional
 from flasgger import swag_from
 from flask import Blueprint, current_app, g, jsonify, request, send_file
 from flask_cors import cross_origin
+from statemachine.exceptions import TransitionNotAllowed
 from werkzeug.utils import secure_filename
 
 from strr_api.common.auth import jwt
@@ -851,10 +852,17 @@ def update_application_status(application_number):
                     http_status=HTTPStatus.BAD_REQUEST,
                 )
 
-        application = ApplicationService.update_application_status(
-            application, status.upper(), user, custom_content, decision, conditions_of_approval
-        )
-        return jsonify(ApplicationService.serialize(application)), HTTPStatus.OK
+        try:
+            application = ApplicationService.update_application_status(
+                application, status.upper(), user, custom_content, decision, conditions_of_approval
+            )
+            return jsonify(ApplicationService.serialize(application)), HTTPStatus.OK
+        except TransitionNotAllowed as err:
+            logger.warning(f"Invalid transition attempted: {err}")
+            return error_response(
+                message=str(err),
+                http_status=HTTPStatus.BAD_REQUEST,
+            )
     except Exception as exception:
         logger.error(exception)
         logger.error(traceback.format_exc())

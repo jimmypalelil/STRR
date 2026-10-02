@@ -67,12 +67,13 @@ def update_status_for_noc_expired_applications(app):
                 app.logger.info(
                     f"Updating status for application {str(application.id)}"
                 )
-                application.status = (
-                    Application.Status.NOC_EXPIRED
-                    if application.status == Application.Status.NOC_PENDING
-                    else Application.Status.PROVISIONAL_REVIEW_NOC_EXPIRED
-                )
-                application.save()
+                from strr_api.workflows.application_workflow import ApplicationWorkflow
+
+                workflow = ApplicationWorkflow(application)
+                if application.status == Application.Status.NOC_PENDING:
+                    workflow.expire_noc()
+                else:
+                    workflow.expire_provisional_noc()
         except Exception as err:  # pylint: disable=broad-except
             app.logger.error(f"Unexpected error: {str(err)}")
             app.logger.error(traceback.format_exc())

@@ -188,11 +188,15 @@ class ApplicationService:
         application.payment_account = invoice_details.get("paymentAccount", {}).get("accountId")
         application.payment_status_code = invoice_details.get("statusCode")
 
+        from strr_api.workflows.application_workflow import ApplicationWorkflow
+
+        workflow = ApplicationWorkflow(application)
+
         if (
             application.status == Application.Status.DRAFT
             and application.payment_status_code == PaymentStatus.CREATED.value
         ):
-            application.status = Application.Status.PAYMENT_DUE
+            workflow.submit_for_payment()
             EventsService.save_event(
                 event_type=Events.EventType.APPLICATION,
                 event_name=Events.EventName.APPLICATION_SUBMITTED,
@@ -201,16 +205,18 @@ class ApplicationService:
             )
         else:
             if application.payment_status_code == PaymentStatus.COMPLETED.value:
-                application.status = Application.Status.PAID
                 application.payment_completion_date = (
                     datetime.fromisoformat(invoice_details.get("paymentDate"))
                     if invoice_details.get("paymentDate")
                     else datetime.utcnow()
                 )
+                if application.status != Application.Status.PAID:
+                    workflow.record_payment()
             elif application.payment_status_code == PaymentStatus.APPROVED.value:
                 application.payment_status_code = PaymentStatus.COMPLETED.value
-                application.status = Application.Status.PAID
                 application.payment_completion_date = datetime.now(timezone.utc)
+                if application.status != Application.Status.PAID:
+                    workflow.record_payment()
 
         application.save()
 
@@ -231,112 +237,17 @@ class ApplicationService:
         decision: Optional[str] = None,
         conditions_of_approval: Optional[dict] = None,
     ) -> Application:
-        """Updates the application status. If the application status is approved, a new registration is created."""
-        original_status = application.status
-        was_set_aside = application.is_set_aside
-        registration = None
-        application.is_set_aside = False
-        application.status = application_status
-        if application_status == Application.Status.FULL_REVIEW_APPROVED:
-            # Determine if we should update existing registration or create new one
-            # Based on current logic, renewal application with provisional flow updates expiry date of registration
-            should_update_existing = (
-                application.type == ApplicationType.RENEWAL.value
-                and application.registration_id
-                and (
-                    original_status
-                    in [
-                        Application.Status.PROVISIONAL_REVIEW,
-                        Application.Status.PROVISIONAL_REVIEW_NOC_PENDING,
-                        Application.Status.PROVISIONAL_REVIEW_NOC_EXPIRED,
-                    ]
-                    or (original_status in APPLICATION_TERMINAL_STATES and was_set_aside)
-                )
-            )
+        """Updates the application status using the ApplicationWorkflow state machine."""
+        from strr_api.workflows.application_workflow import ApplicationWorkflow
 
-            if should_update_existing:
-                registration = RegistrationService.get_registration_by_id(application.registration_id)
-                if registration and application.type == ApplicationType.RENEWAL.value:
-                    # Only recalc expiry if still expired (e.g. provisional had set old+365);
-                    # if provisional already set TODAY+365, do not double-extend
-                    if RegistrationService.is_registration_expired(registration):
-                        RegistrationService.apply_renewal_expiry(registration)
-            else:
-                registration = RegistrationService.create_registration(
-                    application.submitter_id, application.payment_account, application.application_json
-                )
-                application.registration_id = registration.id
-
-            if registration:
-                registration.reviewer_id = reviewer.id
-                registration.decider_id = reviewer.id
-                registration.save()
-
-                event_name = (
-                    Events.EventName.REGISTRATION_RENEWED
-                    if application.type == ApplicationType.RENEWAL.value
-                    else Events.EventName.REGISTRATION_CREATED
-                )
-                EventsService.save_event(
-                    event_type=Events.EventType.REGISTRATION,
-                    event_name=event_name,
-                    application_id=application.id,
-                    registration_id=registration.id,
-                    visible_to_applicant=True,
-                    user_id=reviewer.id,
-                )
-
-        if application_status == Application.Status.PROVISIONALLY_APPROVED:
-            registration = application.registration
-
-        if (
-            application_status
-            in [
-                Application.Status.FULL_REVIEW_APPROVED,
-                Application.Status.PROVISIONALLY_APPROVED,
-            ]
-            and conditions_of_approval is not None
-            and registration
-        ):
-            RegistrationService._update_conditions_of_registration(
-                registration,
-                {"conditionsOfApproval": conditions_of_approval} if conditions_of_approval else {},
-                reviewer.id,
-            )
-
-        if application_status == Application.Status.PROVISIONALLY_DECLINED and original_status in [
-            Application.Status.PROVISIONAL_REVIEW_NOC_PENDING,
-            Application.Status.PROVISIONAL_REVIEW_NOC_EXPIRED,
-        ]:
-            registration = application.registration
-            if registration:
-                registration.status = RegistrationStatus.CANCELLED.value
-                registration.cancelled_date = datetime.now(timezone.utc)
-                registration.save()
-                EventsService.save_event(
-                    event_type=Events.EventType.REGISTRATION,
-                    event_name=Events.EventName.REGISTRATION_CANCELLED,
-                    registration_id=registration.id,
-                    user_id=reviewer.id,
-                )
-
-        if application.status in APPLICATION_TERMINAL_STATES:
-            application.decision_date = datetime.utcnow()
-        application.reviewer_id = reviewer.id
-        application.decider_id = reviewer.id
-        application.save()
-
-        EventsService.save_event(
-            event_type=Events.EventType.APPLICATION,
-            event_name=ApplicationService._get_event_name(application.status),
-            application_id=application.id,
-            user_id=reviewer.id,
-            details=f"Custom Email Content: {custom_content}" if custom_content else None,
+        workflow = ApplicationWorkflow(
+            application=application,
+            reviewer=reviewer,
+            custom_content=custom_content,
+            is_withdraw=(decision == "WITHDRAW"),
+            conditions_of_approval=conditions_of_approval,
         )
-
-        if decision != "WITHDRAW":
-            EmailService.send_application_status_update_email(application, custom_content)
-
+        workflow.transition_to_status(application_status, decision=decision)
         return application
 
     @staticmethod
@@ -413,20 +324,14 @@ class ApplicationService:
         days = current_app.config.get("NOC_EXPIRY_DAYS", 8)
         notice_of_consideration.end_date = notice_of_consideration.start_date + timedelta(days=int(days))
         notice_of_consideration.save()
-        application.status = (
-            Application.Status.PROVISIONAL_REVIEW_NOC_PENDING
-            if application.status == Application.Status.PROVISIONAL_REVIEW
-            else Application.Status.NOC_PENDING
-        )
-        application.save()
+        from strr_api.workflows.application_workflow import ApplicationWorkflow
+
+        workflow = ApplicationWorkflow(application, reviewer=reviewer)
+        if application.status == Application.Status.PROVISIONAL_REVIEW:
+            workflow.send_provisional_noc()
+        else:
+            workflow.send_noc()
         EmailService.send_notice_of_consideration_for_application(application)
-        reviewer_id = reviewer.id if reviewer else None
-        EventsService.save_event(
-            event_type=Events.EventType.APPLICATION,
-            event_name=Events.EventName.NOC_SENT,
-            application_id=application.id,
-            user_id=reviewer_id,
-        )
         return application
 
     @staticmethod

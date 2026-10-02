@@ -762,48 +762,23 @@ class RegistrationService:
     def update_registration_status(
         cls, registration: Registration, json_input: dict, reviewer: User = None
     ) -> Registration:
-        """Updates the registration status."""
+        """Updates the registration status using RegistrationWorkflow state machine."""
+        from strr_api.workflows.registration_workflow import RegistrationWorkflow
+
         status = json_input.get("status")
         email_content = json_input.get("emailContent")
-        previous_status = registration.status
-        event_status_map = {
-            "EXPIRED": Events.EventName.REGISTRATION_EXPIRED,
-            "SUSPENDED": Events.EventName.NON_COMPLIANCE_SUSPENDED,
-            "CANCELLED": Events.EventName.REGISTRATION_CANCELLED,
-        }
-        event_name = None
-        if status == RegistrationStatus.ACTIVE.value:
-            # Always fire an approval event when setting ACTIVE, regardless of previous status.
-            # This ensures Update Approval on an already ACTIVE renewal registration always
-            # writes a history entry and triggers the approval email.
-            if previous_status == RegistrationStatus.SUSPENDED:
-                event_name = Events.EventName.REGISTRATION_REINSTATED
-            else:
-                event_name = Events.EventName.REGISTRATION_APPROVED
-        elif status != previous_status.value or registration.is_set_aside:
-            event_name = event_status_map.get(status)
-
-        registration.status = status
-        registration.is_set_aside = False
-        registration.noc_status = None
-        if status == RegistrationStatus.CANCELLED.value:
-            registration.cancelled_date = datetime.now(timezone.utc)
-        registration.decider_id = reviewer.id
-        registration.save()
-
         reviewer_id = reviewer.id if reviewer else None
+
+        workflow = RegistrationWorkflow(
+            registration=registration,
+            reviewer=reviewer,
+            email_content=email_content,
+        )
+        workflow.transition_to_status(status)
+
         if status == RegistrationStatus.ACTIVE.value:
             RegistrationService._update_conditions_of_registration(registration, json_input, reviewer_id)
 
-        if event_name:
-            EventsService.save_event(
-                event_type=Events.EventType.REGISTRATION,
-                event_name=event_name,
-                registration_id=registration.id,
-                user_id=reviewer_id,
-                visible_to_applicant=True,
-            )
-        EmailService.send_registration_status_update_email(registration, email_content)
         return registration
 
     @staticmethod

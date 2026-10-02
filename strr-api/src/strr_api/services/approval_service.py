@@ -185,22 +185,24 @@ class ApprovalService:
     @classmethod
     def approve_application(cls, application, status, event):
         """Creates the registration and creates the corresponding events."""
+        from strr_api.workflows.application_workflow import ApplicationWorkflow
+
         registration = RegistrationService.create_registration(
             application.submitter_id, application.payment_account, application.application_json
         )
         if status == Application.Status.PROVISIONAL_REVIEW and application.type == ApplicationType.RENEWAL.value:
             registration.provisional_extension_applied = True
             registration.save()
-        application.status = status
         application.registration_id = registration.id
-        application.decision_date = datetime.utcnow()
-        application.save()
-        EventsService.save_event(
-            event_type=Events.EventType.APPLICATION,
-            event_name=event,
-            application_id=application.id,
-            visible_to_applicant=False,
-        )
+
+        workflow = ApplicationWorkflow(application)
+        if status == Application.Status.AUTO_APPROVED:
+            workflow.auto_approve()
+        elif status == Application.Status.PROVISIONAL_REVIEW:
+            workflow.route_to_provisional()
+        else:
+            workflow.transition_to_status(status)
+
         EventsService.save_event(
             event_type=Events.EventType.REGISTRATION,
             event_name=Events.EventName.REGISTRATION_CREATED,
@@ -274,14 +276,10 @@ class ApprovalService:
 
     @classmethod
     def _update_application_status_to_full_review(cls, application):
-        application.status = Application.Status.FULL_REVIEW
-        application.save()
-        EventsService.save_event(
-            event_type=Events.EventType.APPLICATION,
-            event_name=Events.EventName.AUTO_APPROVAL_FULL_REVIEW,
-            application_id=application.id,
-            visible_to_applicant=False,
-        )
+        from strr_api.workflows.application_workflow import ApplicationWorkflow
+
+        workflow = ApplicationWorkflow(application)
+        workflow.route_to_full_review()
 
     @classmethod
     def save_approval_record_by_application(cls, application_id, approval: AutoApproval):

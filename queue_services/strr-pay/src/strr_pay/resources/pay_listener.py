@@ -104,11 +104,12 @@ def worker():
 
     logger.info(f"Processing payment: {payment_token.id}")
 
+    from strr_api.workflows.application_workflow import ApplicationWorkflow
+
     # setting the payment_completion_date, marks the application as paid
     application.payment_completion_date = datetime.now(timezone.utc)
     application.payment_status_code = "COMPLETED"
-    application.status = Application.Status.PAID
-    application.save()
+    ApplicationWorkflow(application).record_payment()
 
     logger.info(f"completed ce: {str(ce)}")
     return {}, HTTPStatus.OK

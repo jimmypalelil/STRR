@@ -3080,3 +3080,61 @@ def test_search_registrations_review_renew_excludes_registration_with_decider(
         assert rv.status_code == HTTPStatus.OK
         registrations = rv.json
         assert len(registrations.get("registrations")) == 0
+
+
+@patch("strr_api.services.strr_pay.create_invoice", return_value=MOCK_INVOICE_RESPONSE)
+def test_state_machine_rejects_illegal_registration_transition_via_api(app, session, client, jwt):
+    """Verify that RegistrationWorkflow rejects illegal transitions through the PUT /registrations/{id}/status endpoint."""
+    with open(CREATE_HOST_REGISTRATION_REQUEST) as f:
+        headers = create_header(jwt, [PUBLIC_USER], "Account-Id")
+        headers["Account-Id"] = ACCOUNT_ID
+        json_data = json.load(f)
+        rv = client.post("/applications", json=json_data, headers=headers)
+        application_number = rv.json.get("header").get("applicationNumber")
+
+        application = Application.find_by_application_number(application_number=application_number)
+        application.payment_status = PaymentStatus.COMPLETED.value
+        application.status = Application.Status.FULL_REVIEW
+        application.save()
+
+        staff_headers = create_header(jwt, [STRR_EXAMINER], "Account-Id")
+        client.put(f"/applications/{application_number}/assign", headers=staff_headers)
+        rv = client.put(
+            f"/applications/{application_number}/status",
+            json={"status": Application.Status.FULL_REVIEW_APPROVED},
+            headers=staff_headers,
+        )
+        assert rv.status_code == HTTPStatus.OK
+        registration_id = rv.json.get("header").get("registrationId")
+
+        # Assign examiner to registration
+        client.put(f"/registrations/{registration_id}/assign", headers=staff_headers)
+
+        # 1. Suspend registration (Valid: ACTIVE -> SUSPENDED)
+        rv = client.put(
+            f"/registrations/{registration_id}/status",
+            json={"status": RegistrationStatus.SUSPENDED.value},
+            headers=staff_headers,
+        )
+        assert rv.status_code == HTTPStatus.OK
+        assert rv.json.get("status") == RegistrationStatus.SUSPENDED.value
+
+        # 2. Cancel registration (Valid: SUSPENDED -> CANCELLED)
+        rv = client.put(
+            f"/registrations/{registration_id}/status",
+            json={"status": RegistrationStatus.CANCELLED.value},
+            headers=staff_headers,
+        )
+        assert rv.status_code == HTTPStatus.OK
+        assert rv.json.get("status") == RegistrationStatus.CANCELLED.value
+
+        # 3. Attempt illegal transition: CANCELLED -> ACTIVE without set-aside
+        rv = client.put(
+            f"/registrations/{registration_id}/status",
+            json={"status": RegistrationStatus.ACTIVE.value},
+            headers=staff_headers,
+        )
+        # The state machine blocks this and returns 400 Bad Request
+        assert rv.status_code == HTTPStatus.BAD_REQUEST
+        assert "Can't" in rv.json.get("message") or "transition" in rv.json.get("message").lower()
+

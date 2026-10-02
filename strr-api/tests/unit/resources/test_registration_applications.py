@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from strr_api.enums.enum import ChannelType, InteractionStatus, PaymentStatus, RegistrationStatus
+from strr_api.enums.enum import ChannelType, ErrorMessage, InteractionStatus, PaymentStatus, RegistrationStatus
 from strr_api.models import Application, CustomerInteraction, Events, Registration
 from strr_api.models.application import ApplicationSerializer
 from strr_api.services import ApplicationService
@@ -651,7 +651,7 @@ def test_put_application_documents_includes_added_on(session, client, jwt):
         assert len(matching_events) == 1
         assert matching_events[0].details.startswith("Document uploaded: ")
         assert matching_events[0].details.endswith("document_upload.txt")
-        assert matching_events[0].user_id == 1
+        assert matching_events[0].user_id == application.submitter_id
         assert doc_uploaded.get("uploadDate") is not None
 
         rv = client.get(f"/applications/{application_number}", headers=headers)
@@ -674,7 +674,7 @@ def test_put_application_documents_rejected_when_registered(mock_invoice, sessio
         application_number = rv.json.get("header").get("applicationNumber")
         app = Application.find_by_application_number(application_number)
         reg = Registration(
-            user_id=1,
+            user_id=app.submitter_id,
             sbc_account_id=ACCOUNT_ID,
             status=RegistrationStatus.ACTIVE,
             registration_number="REG123456",
@@ -1702,6 +1702,35 @@ def test_examiner_approve_application_after_set_aside(app, session, client, jwt)
         assert response_json.get("header").get("isSetAside") is False
         assert response_json.get("header").get("registrationId") is not None
         assert response_json.get("header").get("registrationNumber") is not None
+
+
+@patch("strr_api.services.strr_pay.create_invoice", return_value=MOCK_INVOICE_RESPONSE)
+def test_state_machine_rejects_illegal_transition_via_api(app, session, client, jwt):
+    """Test that the state machine prevents illegal status updates at the API endpoint."""
+    with open(CREATE_HOST_REGISTRATION_REQUEST) as f:
+        headers = create_header(jwt, [PUBLIC_USER], "Account-Id")
+        headers["Account-Id"] = ACCOUNT_ID
+        json_data = json.load(f)
+        rv = client.post("/applications", json=json_data, headers=headers)
+        application_number = rv.json.get("header").get("applicationNumber")
+
+        application = Application.find_by_application_number(application_number=application_number)
+        application.payment_status = PaymentStatus.COMPLETED.value
+        application.status = Application.Status.FULL_REVIEW
+        application.save()
+
+        staff_headers = create_header(jwt, [STRR_EXAMINER], "Account-Id")
+        client.put(f"/applications/{application_number}/assign", headers=staff_headers)
+
+        # 1. Approve application legally via state machine
+        rv = client.put(f"/applications/{application_number}/status", json={"status": "FULL_REVIEW_APPROVED"}, headers=staff_headers)
+        assert HTTPStatus.OK == rv.status_code
+
+        # 2. Try illegal transition: Decline an already approved application
+        rv = client.put(f"/applications/{application_number}/status", json={"status": "DECLINED"}, headers=staff_headers)
+        assert HTTPStatus.BAD_REQUEST == rv.status_code
+        assert rv.json.get("message") == ErrorMessage.APPLICATION_TERMINAL_STATE.value
+
 
 
 @patch("strr_api.services.strr_pay.create_invoice", return_value=MOCK_INVOICE_RESPONSE)

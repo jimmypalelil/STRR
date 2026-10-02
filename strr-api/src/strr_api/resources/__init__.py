@@ -51,6 +51,7 @@ from .str_address_requirements import bp_with_version as str_address_requirement
 from .users import bp as users_endpoint
 from .validation import bp as validation_endpoint
 from .validation import bp_with_version as validation_endpoint_with_version
+from .workflows import bp as workflows_endpoint
 
 
 def register_endpoints(app: Flask):
@@ -118,6 +119,11 @@ def register_endpoints(app: Flask):
     app.register_blueprint(
         url_prefix="/permits",
         blueprint=validation_endpoint,
+    )
+
+    app.register_blueprint(
+        url_prefix="/workflows",
+        blueprint=workflows_endpoint,
     )
 
     app.register_blueprint(meta_endpoint)

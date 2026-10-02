@@ -47,6 +47,7 @@ from dateutil.relativedelta import relativedelta
 from flasgger import swag_from
 from flask import Blueprint, current_app, g, jsonify, request, send_file
 from flask_cors import cross_origin
+from statemachine.exceptions import TransitionNotAllowed
 from werkzeug.utils import secure_filename
 
 from strr_api.common.auth import jwt
@@ -648,12 +649,20 @@ def update_registration_status(registration_id):
                 http_status=HTTPStatus.FORBIDDEN,
             )
 
-        registration = RegistrationService.update_registration_status(
-            registration=registration, json_input=json_input, reviewer=reviewer
-        )
-        return RegistrationService.serialize(registration), HTTPStatus.OK
+        try:
+            registration = RegistrationService.update_registration_status(
+                registration=registration, json_input=json_input, reviewer=reviewer
+            )
+            return RegistrationService.serialize(registration), HTTPStatus.OK
+        except TransitionNotAllowed as err:
+            logger.warning(f"Invalid registration transition attempted: {err}")
+            return error_response(
+                message=str(err),
+                http_status=HTTPStatus.BAD_REQUEST,
+            )
     except Exception as exception:
         logger.error(exception)
+        logger.error(traceback.format_exc())
         return error_response(message=ErrorMessage.PROCESSING_ERROR.value, http_status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
 

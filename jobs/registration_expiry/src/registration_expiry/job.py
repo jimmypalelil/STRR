@@ -73,13 +73,9 @@ def update_status_for_registration_expired_applications(app):
         try:
             app.logger.info(f"Processing registration # {str(rental.id)}")
             app.logger.info(f"Updating status for registration {str(rental.id)}")
-            rental.status = RegistrationStatus.EXPIRED.value
-            rental.save()
-            EventsService.save_event(
-                event_type=Events.EventType.REGISTRATION,
-                event_name=Events.EventName.REGISTRATION_EXPIRED,
-                registration_id=rental.id,
-            )
+            from strr_api.workflows.registration_workflow import RegistrationWorkflow
+
+            RegistrationWorkflow(rental).expire()
             app.logger.info(f"Registration {str(rental.id)} status updated to expired")
         except Exception as err:  # pylint: disable=broad-except
             app.logger.error(f"Unexpected error: {str(err)}")
