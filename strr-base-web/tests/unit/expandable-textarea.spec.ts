@@ -93,7 +93,7 @@ describe('ConnectFormExpandableTextarea Component', () => {
     expect(buttons.length).toBe(2)
     expect(buttons[0]!.text()).toBe('Expand')
     expect(buttons[1]!.text()).toBe('Full View')
-    expect(wrapper.find('.bottom-2\\.5').exists()).toBe(true)
+    expect(wrapper.find('.justify-center.bg-gradient-to-t').exists()).toBe(true)
   })
 
   it('toggles expansion state when expand button is clicked', async () => {

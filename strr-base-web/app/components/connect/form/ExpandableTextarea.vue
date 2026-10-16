@@ -132,32 +132,37 @@ onMounted(() => {
     >
       <div
         v-if="canToggleExpand"
-        class="absolute bottom-2.5 right-5 z-10 flex items-center gap-1.5"
+        :class="[
+          'pointer-events-none absolute inset-x-1 bottom-0.5 z-10 flex justify-center rounded-b-md pb-2.5 pt-7',
+          'bg-gradient-to-t from-str-bgGray via-str-bgGray/85 to-transparent'
+        ]"
       >
-        <UButton
-          :icon="isExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
-          :label="isExpanded ? t('btn.collapse') : t('btn.expand')"
-          size="xs"
-          color="white"
-          variant="solid"
-          class="shadow-sm"
-          :data-testid="toggleTestid || `${dataTestid}-toggle-expand`"
-          :aria-label="isExpanded
-            ? (collapseAriaLabel || t('btn.collapse'))
-            : (expandAriaLabel || t('btn.expand'))"
-          @click="toggleExpand"
-        />
-        <UButton
-          icon="i-mdi-fullscreen"
-          :label="t('btn.openInDialog')"
-          size="xs"
-          color="white"
-          variant="solid"
-          class="shadow-sm"
-          :data-testid="dialogTestid || `${dataTestid}-open-dialog`"
-          :aria-label="t('btn.openInDialog')"
-          @click="isDialogOpen = true"
-        />
+        <div class="pointer-events-auto flex items-center gap-2">
+          <UButton
+            :icon="isExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
+            :label="isExpanded ? t('btn.collapse') : t('btn.expand')"
+            size="xs"
+            color="white"
+            variant="solid"
+            class="rounded-full px-3 shadow-sm ring-1 ring-gray-300/80"
+            :data-testid="toggleTestid || `${dataTestid}-toggle-expand`"
+            :aria-label="isExpanded
+              ? (collapseAriaLabel || t('btn.collapse'))
+              : (expandAriaLabel || t('btn.expand'))"
+            @click="toggleExpand"
+          />
+          <UButton
+            icon="i-mdi-fullscreen"
+            :label="t('btn.openInDialog')"
+            size="xs"
+            color="white"
+            variant="solid"
+            class="rounded-full px-3 shadow-sm ring-1 ring-gray-300/80"
+            :data-testid="dialogTestid || `${dataTestid}-open-dialog`"
+            :aria-label="t('btn.openInDialog')"
+            @click="isDialogOpen = true"
+          />
+        </div>
       </div>
     </UTextarea>
 
