@@ -67,7 +67,7 @@ onMounted(() => {
           </div>
           <div class="flex-auto pr-10">
             <UFormGroup name="content">
-              <ExpandableTextarea
+              <ConnectFormExpandableTextarea
                 v-model="emailContent.content"
                 :placeholder="t('modal.noc.placeholder')"
                 :aria-label="t('modal.noc.placeholder')"

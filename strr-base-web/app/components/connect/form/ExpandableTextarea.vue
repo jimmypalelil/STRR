@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 interface Props {
   modelValue?: string
   placeholder?: string
   disabled?: boolean
   ariaLabel?: string
+  expandAriaLabel?: string
+  collapseAriaLabel?: string
   dataTestid?: string
   toggleTestid?: string
   initialHeight?: number
@@ -21,6 +24,8 @@ const props = withDefaults(defineProps<Props>(), {
   placeholder: '',
   disabled: false,
   ariaLabel: '',
+  expandAriaLabel: '',
+  collapseAriaLabel: '',
   dataTestid: 'expandable-textarea',
   toggleTestid: '',
   initialHeight: 290,
@@ -38,7 +43,7 @@ const emit = defineEmits(['update:modelValue', 'change', 'blur', 'toggleExpand']
 const { t } = useI18n()
 
 const textareaRef = ref<any>(null)
-const isEmailExpanded = ref(false)
+const isExpanded = ref(false)
 const isTextareaOverflowing = ref(false)
 
 const getTextareaEl = (): HTMLTextAreaElement | null => {
@@ -64,17 +69,17 @@ const hasExpandableContent = computed(() => {
 })
 
 const canToggleExpand = computed(() =>
-  isEmailExpanded.value || hasExpandableContent.value || isTextareaOverflowing.value
+  isExpanded.value || hasExpandableContent.value || isTextareaOverflowing.value
 )
 
 const toggleExpand = () => {
-  isEmailExpanded.value = !isEmailExpanded.value
-  emit('toggleExpand', isEmailExpanded.value)
+  isExpanded.value = !isExpanded.value
+  emit('toggleExpand', isExpanded.value)
 
   const el = getTextareaEl()
   if (el) {
     el.style.height = ''
-    if (isEmailExpanded.value) {
+    if (isExpanded.value) {
       nextTick(() => {
         const viewportCeiling = typeof window !== 'undefined'
           ? Math.floor(window.innerHeight * props.maxViewportRatio)
@@ -90,7 +95,7 @@ const toggleExpand = () => {
 }
 
 const textareaClasses = computed(() => [
-  isEmailExpanded.value
+  isExpanded.value
     ? `min-h-[${props.expandedMinHeight}px] max-h-[80vh]`
     : `min-h-[${props.initialHeight}px] h-[${props.initialHeight}px]`,
   props.bgClass,
@@ -138,14 +143,16 @@ onMounted(() => {
         class="absolute right-3 top-3 z-10"
       >
         <UButton
-          :icon="isEmailExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
-          :label="isEmailExpanded ? t('btn.collapse') : t('btn.expand')"
+          :icon="isExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
+          :label="isExpanded ? t('btn.collapse') : t('btn.expand')"
           size="xs"
           color="white"
           variant="solid"
           class="shadow-sm"
           :data-testid="toggleTestid || `${dataTestid}-toggle-expand`"
-          :aria-label="isEmailExpanded ? t('decision.collapseEmail') : t('decision.expandEmail')"
+          :aria-label="isExpanded
+            ? (collapseAriaLabel || t('btn.collapse'))
+            : (expandAriaLabel || t('btn.expand'))"
           @click="toggleExpand"
         />
       </div>

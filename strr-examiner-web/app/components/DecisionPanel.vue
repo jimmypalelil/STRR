@@ -289,7 +289,7 @@ onMounted(() => {
                 error: 'text-xs/5 mt-1 absolute'
               }"
             >
-              <ExpandableTextarea
+              <ConnectFormExpandableTextarea
                 v-model="decisionEmailContent.content"
                 :placeholder="decisionEmailPlaceholder"
                 :aria-label="decisionEmailPlaceholder"
