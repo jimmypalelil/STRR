@@ -63,7 +63,7 @@ describe('ConnectFormExpandableTextarea Component', () => {
       global: globalMocks
     })
 
-    expect(wrapper.find('.u-textarea-stub').classes()).toContain('h-[290px]')
+    expect(wrapper.find('textarea').element.style.height).toBe('290px')
     expect(wrapper.find('.u-textarea-stub').classes()).toContain('min-h-[80px]')
     expect(wrapper.find('.u-textarea-stub').classes()).toContain('resize-y')
     expect(wrapper.find('.u-textarea-stub').classes()).not.toContain('transition-all')
@@ -120,7 +120,6 @@ describe('ConnectFormExpandableTextarea Component', () => {
     // Toggle back
     await wrapper.findAll('.u-button-stub')[0]!.trigger('click')
     await nextTick()
-    expect(wrapper.find('.u-textarea-stub').classes()).toContain('h-[290px]')
     expect(wrapper.find('textarea').element.style.height).toBe('290px')
     expect(wrapper.findAll('.u-button-stub')[0]!.text()).toBe('Expand')
     expect(wrapper.emitted('toggleExpand')![1]).toEqual([false])
