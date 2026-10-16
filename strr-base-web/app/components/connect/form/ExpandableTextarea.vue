@@ -133,8 +133,8 @@ onMounted(() => {
       <div
         v-if="canToggleExpand"
         :class="[
-          'pointer-events-none absolute inset-x-1 bottom-0.5 z-10 flex justify-center rounded-b-md pb-2.5 pt-7',
-          'bg-gradient-to-t from-str-bgGray via-str-bgGray/85 to-transparent'
+          'pointer-events-none absolute bottom-1 left-1 right-5 z-10 flex justify-center pb-2 pt-7',
+          !isExpanded && 'bg-gradient-to-t from-str-bgGray via-str-bgGray/85 to-transparent'
         ]"
       >
         <div class="pointer-events-auto flex items-center gap-2">
