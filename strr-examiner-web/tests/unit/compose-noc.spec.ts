@@ -13,6 +13,8 @@ const mockState = {
   applicationType: 'registration'
 }
 
+const emailContent = ref({ content: '' })
+
 vi.mock('@/stores/examiner', () => ({
   useExaminerStore: () => ({
     hasRegistrationNumber: ref(mockState.hasRegistrationNumber),
@@ -21,7 +23,7 @@ vi.mock('@/stores/examiner', () => ({
     isAssignedToUser: ref(mockState.isAssignedToUser),
     isApplication: ref(mockState.isApplication),
     activeReg: ref({ registrationType: mockState.registrationType }),
-    emailContent: ref({ content: '' }),
+    emailContent,
     activeHeader: ref({ applicationType: mockState.applicationType }),
     sendNocSchema: ref({}),
     sendEmailSchema: ref({})
@@ -65,7 +67,8 @@ describe('ComposeNoc Component', () => {
     expect(wrapper.find('[data-testid="compose-email"]').exists()).toBe(true)
   })
 
-  it('should have resize enabled and toggle expand/collapse rows', async () => {
+  it('should hide expand button when empty and toggle rows when long content is present', async () => {
+    emailContent.value = { content: '' }
     const wrapper = await mountSuspended(ComposeNoc, {
       global: { plugins: [enI18n] }
     })
@@ -75,16 +78,25 @@ describe('ComposeNoc Component', () => {
     expect(textarea.props('resize')).toBe(true)
     expect(textarea.props('rows')).toBe(3)
 
+    // Button should not exist when empty
+    expect(wrapper.find('[data-testid="toggle-expand-noc-email"]').exists()).toBe(false)
+
+    // Add long multi-line content
+    emailContent.value.content = Array(12).fill('Notice of consideration details').join('\n')
+    await nextTick()
+
     const toggleBtn = wrapper.find('[data-testid="toggle-expand-noc-email"]')
     expect(toggleBtn.exists()).toBe(true)
     expect(toggleBtn.text()).toContain('Expand')
 
     await toggleBtn.trigger('click')
     expect(toggleBtn.text()).toContain('Collapse')
-    expect(textarea.props('rows')).toBe(12)
+    const textareaEl = wrapper.find('textarea')
+    expect(textareaEl.classes()).toContain('min-h-[400px]')
+    expect(textareaEl.classes()).toContain('max-h-[80vh]')
 
     await toggleBtn.trigger('click')
     expect(toggleBtn.text()).toContain('Expand')
-    expect(textarea.props('rows')).toBe(3)
+    expect(textareaEl.classes()).toContain('h-[110px]')
   })
 })

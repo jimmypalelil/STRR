@@ -268,7 +268,7 @@ describe('DecisionPanel', () => {
     expect((textareaEl.element as HTMLTextAreaElement).value).toBe('Preserved email text for registration')
   })
 
-  it('should toggle expand and collapse on the decision email field', async () => {
+  it('should hide expand button when content is empty and show it when long text is present', async () => {
     isApplication.value = true
     activeHeader.value = {
       examinerActions: [ApplicationActionsE.REJECT],
@@ -281,6 +281,13 @@ describe('DecisionPanel', () => {
       global: { plugins: [enI18n] }
     })
 
+    // When empty, expand button should not be shown
+    expect(wrapper.find('[data-testid="toggle-expand-decision-email"]').exists()).toBe(false)
+
+    // Add long multi-line text
+    decisionEmailContent.value.content = Array(12).fill('Line of reason text for decision email').join('\n')
+    await nextTick()
+
     const toggleBtn = wrapper.find('[data-testid="toggle-expand-decision-email"]')
     expect(toggleBtn.exists()).toBe(true)
     expect(toggleBtn.text()).toContain('Expand')
@@ -290,7 +297,8 @@ describe('DecisionPanel', () => {
 
     await toggleBtn.trigger('click')
     expect(toggleBtn.text()).toContain('Collapse')
-    expect(textareaEl.classes()).toContain('h-[560px]')
+    expect(textareaEl.classes()).toContain('min-h-[560px]')
+    expect(textareaEl.classes()).toContain('max-h-[80vh]')
 
     await toggleBtn.trigger('click')
     expect(toggleBtn.text()).toContain('Expand')

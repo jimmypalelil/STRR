@@ -42,15 +42,6 @@ const handleInput = () => {
   }
 }
 
-const isEmailExpanded = ref(false)
-const toggleEmailExpanded = () => {
-  isEmailExpanded.value = !isEmailExpanded.value
-  const textareaEl = emailFormRef.value?.$el?.querySelector('textarea')
-  if (textareaEl) {
-    textareaEl.style.height = ''
-  }
-}
-
 // Reset the email a completing party content so that it does not carry to other applications
 onMounted(() => {
   emailContent.value.content = ''
@@ -76,36 +67,17 @@ onMounted(() => {
           </div>
           <div class="flex-auto pr-10">
             <UFormGroup name="content">
-              <UTextarea
+              <ExpandableTextarea
                 v-model="emailContent.content"
                 :placeholder="t('modal.noc.placeholder')"
                 :aria-label="t('modal.noc.placeholder')"
-                :color="'gray'"
-                class="text-bcGovColor-midGray focus:ring-0"
-                auto-resize
-                resize
-                :rows="isEmailExpanded ? 12 : 3"
-                :ui="{
-                  padding: {
-                    sm: 'p-4 pr-24'
-                  }
-                }"
-                @update:model-value="handleInput"
-              >
-                <div class="absolute right-3 top-3 z-10">
-                  <UButton
-                    :icon="isEmailExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
-                    :label="isEmailExpanded ? t('btn.collapse') : t('btn.expand')"
-                    size="xs"
-                    color="white"
-                    variant="solid"
-                    class="shadow-sm"
-                    data-testid="toggle-expand-noc-email"
-                    :aria-label="isEmailExpanded ? t('decision.collapseEmail') : t('decision.expandEmail')"
-                    @click="toggleEmailExpanded"
-                  />
-                </div>
-              </UTextarea>
+                data-testid="compose-email-textarea"
+                toggle-testid="toggle-expand-noc-email"
+                :initial-height="110"
+                :expanded-min-height="400"
+                bg-class="text-bcGovColor-midGray focus:ring-0"
+                @change="handleInput"
+              />
             </UFormGroup>
           </div>
         </div>

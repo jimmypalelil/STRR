@@ -38,20 +38,6 @@ const isDecisionEmailDisabled = computed((): boolean =>
 
 const localConditions = ref<string[]>([])
 const customCondition = ref<string>('') // custom condition to be added to lit of all conditions
-const isEmailExpanded = ref(false)
-
-const toggleEmailExpanded = () => {
-  isEmailExpanded.value = !isEmailExpanded.value
-  const textareaEl = decisionEmailFormRef.value?.$el?.querySelector('textarea')
-  if (textareaEl) {
-    textareaEl.style.height = ''
-  }
-}
-
-const decisionEmailTextareaBase = computed(() => [
-  isEmailExpanded.value ? 'min-h-[560px] h-[560px]' : 'min-h-[290px] h-[290px]',
-  '!bg-str-bgGray focus:ring-0 transition-all duration-200'
-].join(' '))
 
 const decisionEmailPlaceholder = computed((): string =>
   !!decisionIntent.value && [ApplicationActionsE.SEND_NOC,
@@ -303,37 +289,17 @@ onMounted(() => {
                 error: 'text-xs/5 mt-1 absolute'
               }"
             >
-              <UTextarea
+              <ExpandableTextarea
                 v-model="decisionEmailContent.content"
                 :placeholder="decisionEmailPlaceholder"
                 :aria-label="decisionEmailPlaceholder"
                 data-testid="decision-email"
-                color="gray"
-                auto-resize
-                resize
+                toggle-testid="toggle-expand-decision-email"
                 :disabled="isDecisionEmailDisabled"
-                :ui="{
-                  base: decisionEmailTextareaBase,
-                  padding: {
-                    sm: 'p-4 pr-24'
-                  }
-                }"
-                @update:model-value="decisionEmailFormRef?.clear?.()"
-              >
-                <div class="absolute right-3 top-3 z-10">
-                  <UButton
-                    :icon="isEmailExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
-                    :label="isEmailExpanded ? t('btn.collapse') : t('btn.expand')"
-                    size="xs"
-                    color="white"
-                    variant="solid"
-                    class="shadow-sm"
-                    data-testid="toggle-expand-decision-email"
-                    :aria-label="isEmailExpanded ? t('decision.collapseEmail') : t('decision.expandEmail')"
-                    @click="toggleEmailExpanded"
-                  />
-                </div>
-              </UTextarea>
+                :initial-height="290"
+                :expanded-min-height="560"
+                @change="decisionEmailFormRef?.clear?.()"
+              />
             </UFormGroup>
           </UForm>
         </div>
