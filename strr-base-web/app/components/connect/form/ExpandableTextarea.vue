@@ -66,6 +66,9 @@ const toggleExpand = () => {
   const el = getTextareaEl()
   if (el) {
     setHeight(next ? Math.max(el.scrollHeight, props.expandedMinHeight) : props.initialHeight)
+    if (!next) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
   }
 }
 
