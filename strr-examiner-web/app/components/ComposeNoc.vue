@@ -71,18 +71,8 @@ onMounted(() => {
         data-testid="compose-email"
       >
         <div class="flex">
-          <div class="flex w-1/5 flex-col items-center justify-between">
+          <div class="flex w-1/5 flex-col items-center">
             <span class="pl-5 font-bold">{{ t('modal.noc.title') }}</span>
-            <UButton
-              :icon="isEmailExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
-              :label="isEmailExpanded ? t('btn.collapse') : t('btn.expand')"
-              size="xs"
-              color="primary"
-              variant="ghost"
-              data-testid="toggle-expand-noc-email"
-              :aria-label="isEmailExpanded ? t('decision.collapseEmail') : t('decision.expandEmail')"
-              @click="toggleEmailExpanded"
-            />
           </div>
           <div class="flex-auto pr-10">
             <UFormGroup name="content">
@@ -95,8 +85,27 @@ onMounted(() => {
                 auto-resize
                 resize
                 :rows="isEmailExpanded ? 12 : 3"
+                :ui="{
+                  padding: {
+                    sm: 'p-4 pr-24'
+                  }
+                }"
                 @update:model-value="handleInput"
-              />
+              >
+                <div class="absolute right-3 top-3 z-10">
+                  <UButton
+                    :icon="isEmailExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
+                    :label="isEmailExpanded ? t('btn.collapse') : t('btn.expand')"
+                    size="xs"
+                    color="white"
+                    variant="solid"
+                    class="shadow-sm"
+                    data-testid="toggle-expand-noc-email"
+                    :aria-label="isEmailExpanded ? t('decision.collapseEmail') : t('decision.expandEmail')"
+                    @click="toggleEmailExpanded"
+                  />
+                </div>
+              </UTextarea>
             </UFormGroup>
           </div>
         </div>

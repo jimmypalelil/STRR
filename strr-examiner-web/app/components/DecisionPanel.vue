@@ -286,20 +286,8 @@ onMounted(() => {
           />
         </div>
         <div>
-          <div class="flex items-center justify-between">
-            <div class="font-bold">
-              {{ t('decision.emailTitle') }}
-            </div>
-            <UButton
-              :icon="isEmailExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
-              :label="isEmailExpanded ? t('btn.collapse') : t('btn.expand')"
-              size="xs"
-              color="primary"
-              variant="ghost"
-              data-testid="toggle-expand-decision-email"
-              :aria-label="isEmailExpanded ? t('decision.collapseEmail') : t('decision.expandEmail')"
-              @click="toggleEmailExpanded"
-            />
+          <div class="font-bold">
+            {{ t('decision.emailTitle') }}
           </div>
           <UForm
             ref="decisionEmailFormRef"
@@ -327,11 +315,25 @@ onMounted(() => {
                 :ui="{
                   base: decisionEmailTextareaBase,
                   padding: {
-                    sm: 'p-4'
+                    sm: 'p-4 pr-24'
                   }
                 }"
                 @update:model-value="decisionEmailFormRef?.clear?.()"
-              />
+              >
+                <div class="absolute right-3 top-3 z-10">
+                  <UButton
+                    :icon="isEmailExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
+                    :label="isEmailExpanded ? t('btn.collapse') : t('btn.expand')"
+                    size="xs"
+                    color="white"
+                    variant="solid"
+                    class="shadow-sm"
+                    data-testid="toggle-expand-decision-email"
+                    :aria-label="isEmailExpanded ? t('decision.collapseEmail') : t('decision.expandEmail')"
+                    @click="toggleEmailExpanded"
+                  />
+                </div>
+              </UTextarea>
             </UFormGroup>
           </UForm>
         </div>
