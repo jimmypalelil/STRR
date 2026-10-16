@@ -46,7 +46,9 @@ describe('ConnectFormExpandableTextarea Component', () => {
     })
 
     expect(wrapper.find('.u-textarea-stub').classes()).toContain('h-[290px]')
-    expect(wrapper.find('.u-textarea-stub').classes()).toContain('min-h-[290px]')
+    expect(wrapper.find('.u-textarea-stub').classes()).toContain('min-h-[80px]')
+    expect(wrapper.find('.u-textarea-stub').classes()).toContain('resize-y')
+    expect(wrapper.find('.u-textarea-stub').classes()).not.toContain('transition-all')
   })
 
   it('hides the toggle button when text is empty', () => {
@@ -89,7 +91,8 @@ describe('ConnectFormExpandableTextarea Component', () => {
     await button.trigger('click')
     await nextTick()
 
-    expect(wrapper.find('.u-textarea-stub').classes()).toContain('min-h-[560px]')
+    expect(wrapper.find('.u-textarea-stub').classes()).toContain('max-h-[80vh]')
+    expect(wrapper.find('textarea').element.style.height).toBe('560px')
     expect(wrapper.find('.u-button-stub').text()).toBe('Collapse')
     expect(wrapper.emitted('toggleExpand')).toBeTruthy()
     expect(wrapper.emitted('toggleExpand')![0]).toEqual([true])
@@ -98,6 +101,7 @@ describe('ConnectFormExpandableTextarea Component', () => {
     await wrapper.find('.u-button-stub').trigger('click')
     await nextTick()
     expect(wrapper.find('.u-textarea-stub').classes()).toContain('h-[290px]')
+    expect(wrapper.find('textarea').element.style.height).toBe('290px')
     expect(wrapper.find('.u-button-stub').text()).toBe('Expand')
     expect(wrapper.emitted('toggleExpand')![1]).toEqual([false])
   })

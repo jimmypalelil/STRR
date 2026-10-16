@@ -297,7 +297,7 @@ describe('DecisionPanel', () => {
 
     await toggleBtn.trigger('click')
     expect(toggleBtn.text()).toContain('Collapse')
-    expect(textareaEl.classes()).toContain('min-h-[560px]')
+    expect((textareaEl.element as HTMLTextAreaElement).style.height).toBe('560px')
     expect(textareaEl.classes()).toContain('max-h-[80vh]')
 
     await toggleBtn.trigger('click')

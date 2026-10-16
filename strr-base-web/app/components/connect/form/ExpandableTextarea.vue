@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
-import { useResizeObserver } from '@vueuse/core'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -40,27 +39,26 @@ const { t } = useI18n()
 
 const textareaRef = ref<{ textarea?: HTMLTextAreaElement, $el?: HTMLElement } | null>(null)
 const isExpanded = ref(false)
-const scrollHeight = ref(0)
 const isOverflowing = ref(false)
 
-const textareaEl = computed<HTMLTextAreaElement | null>(() =>
+const getTextareaEl = (): HTMLTextAreaElement | null =>
   textareaRef.value?.textarea ??
   textareaRef.value?.$el?.querySelector?.('textarea') ??
   null
-)
 
-const syncMetrics = () => {
-  const el = textareaEl.value
-  if (!el) { return }
-  scrollHeight.value = el.scrollHeight
-  isOverflowing.value = el.scrollHeight > el.clientHeight + 10
+const checkOverflow = () => {
+  const el = getTextareaEl()
+  if (el) {
+    isOverflowing.value = el.scrollHeight > el.clientHeight + 10
+  }
 }
 
-useResizeObserver(textareaEl, syncMetrics)
-
-watch(model, () => {
-  nextTick(syncMetrics)
-})
+const applyHeight = (heightPx: number) => {
+  const el = getTextareaEl()
+  if (el) {
+    el.style.height = `${heightPx}px`
+  }
+}
 
 const hasExpandableContent = computed(() => {
   const text = (model.value || '').trim()
@@ -74,39 +72,40 @@ const canToggleExpand = computed(() =>
 )
 
 const toggleExpand = () => {
-  syncMetrics()
   isExpanded.value = !isExpanded.value
   emit('toggleExpand', isExpanded.value)
+
+  const el = getTextareaEl()
+  if (!el) { return }
+
+  if (isExpanded.value) {
+    const targetHeight = Math.max(el.scrollHeight + 32, props.expandedMinHeight)
+    applyHeight(targetHeight)
+  } else {
+    applyHeight(props.initialHeight)
+  }
 }
 
 const textareaClasses = computed(() => {
-  const heightClasses = isExpanded.value
-    ? (props.expandedMinHeight === 560
-        ? 'min-h-[560px] max-h-[80vh]'
-        : `min-h-[${props.expandedMinHeight}px] max-h-[80vh]`)
-    : (props.initialHeight === 290
-        ? 'min-h-[290px] h-[290px]'
-        : `min-h-[${props.initialHeight}px] h-[${props.initialHeight}px]`)
+  const collapsedHeightClass = props.initialHeight === 290
+    ? 'h-[290px]'
+    : `h-[${props.initialHeight}px]`
 
   return [
-    heightClasses,
-    props.bgClass,
-    'focus:ring-0 transition-all duration-200'
+    isExpanded.value ? 'max-h-[80vh]' : collapsedHeightClass,
+    'min-h-[80px] resize-y focus:ring-0',
+    props.bgClass
   ].join(' ')
 })
 
-const textareaStyle = computed(() =>
-  isExpanded.value
-    ? {
-        height: `${Math.max(scrollHeight.value + 32, props.expandedMinHeight)}px`,
-        minHeight: `${props.expandedMinHeight}px`,
-        maxHeight: '80vh'
-      }
-    : {
-        height: `${props.initialHeight}px`,
-        minHeight: `${props.initialHeight}px`
-      }
-)
+watch(model, () => {
+  nextTick(checkOverflow)
+})
+
+onMounted(() => {
+  applyHeight(props.initialHeight)
+  nextTick(checkOverflow)
+})
 </script>
 
 <template>
@@ -118,8 +117,6 @@ const textareaStyle = computed(() =>
       :data-testid="dataTestid"
       :color="color as any"
       :resize="resize"
-      :style="textareaStyle"
-      autoresize
       :ui="{
         base: textareaClasses,
         padding: {
