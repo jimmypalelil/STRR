@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useToggle } from '@vueuse/core'
+import ModalBase from '../../modal/Base.vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -19,6 +20,7 @@ const props = withDefaults(defineProps<{
   resize?: boolean
   color?: string
   bgClass?: string
+  fadeClass?: string
 }>(), {
   dataTestid: 'expandable-textarea',
   toggleTestid: '',
@@ -30,7 +32,8 @@ const props = withDefaults(defineProps<{
   expandedMinHeight: DEFAULT_EXPANDED_HEIGHT_PX,
   resize: true,
   color: 'gray',
-  bgClass: '!bg-str-bgGray'
+  bgClass: '!bg-str-bgGray',
+  fadeClass: ''
 })
 
 const emit = defineEmits<{
@@ -70,6 +73,13 @@ const textareaBaseClass = computed(() =>
   `w-full min-h-[80px] resize-y focus:ring-0 ${props.bgClass}`
 )
 
+const resolvedFadeClass = computed(() => {
+  if (props.fadeClass) { return props.fadeClass }
+  return props.bgClass.includes('white')
+    ? 'from-white via-white/85'
+    : 'from-str-bgGray via-str-bgGray/85'
+})
+
 onMounted(() => {
   setHeight(props.initialHeight)
 })
@@ -94,7 +104,7 @@ onMounted(() => {
         v-if="canToggleExpand"
         :class="[
           'pointer-events-none absolute bottom-1 left-1 right-5 z-10 flex justify-center pb-2 pt-7',
-          !isExpanded && 'bg-gradient-to-t from-str-bgGray via-str-bgGray/85 to-transparent'
+          !isExpanded && `bg-gradient-to-t ${resolvedFadeClass} to-transparent`
         ]"
       >
         <div class="pointer-events-auto flex items-center gap-2">
@@ -104,7 +114,7 @@ onMounted(() => {
             size="xs"
             color="white"
             variant="solid"
-            class="rounded-full px-3 shadow-sm ring-1 ring-gray-300/80"
+            class="rounded-full px-3 shadow-sm ring-1 ring-gray-300/80 transition-shadow hover:shadow"
             :data-testid="toggleTestid || `${dataTestid}-toggle-expand`"
             :aria-label="isExpanded
               ? (collapseAriaLabel || t('btn.collapse'))
@@ -117,7 +127,7 @@ onMounted(() => {
             size="xs"
             color="white"
             variant="solid"
-            class="rounded-full px-3 shadow-sm ring-1 ring-gray-300/80"
+            class="rounded-full px-3 shadow-sm ring-1 ring-gray-300/80 transition-shadow hover:shadow"
             :data-testid="dialogTestid || `${dataTestid}-open-dialog`"
             :aria-label="t('btn.openInDialog')"
             @click="isDialogOpen = true"
@@ -126,64 +136,55 @@ onMounted(() => {
       </div>
     </UTextarea>
 
-    <UModal
+    <ModalBase
       v-model="isDialogOpen"
-      :ui="{ width: 'w-full sm:max-w-4xl' }"
+      :title="dialogTitle || ($attrs['aria-label'] as string) || t('btn.openInDialog')"
+      width="w-full sm:max-w-4xl"
     >
-      <UCard
+      <UTextarea
+        v-model="model"
+        :placeholder="($attrs.placeholder as string) || ''"
+        :aria-label="($attrs['aria-label'] as string) || dialogTitle || t('btn.openInDialog')"
+        :disabled="Boolean($attrs.disabled)"
+        :color="color as any"
+        :data-testid="`${dataTestid}-dialog-textarea`"
+        resize
         :ui="{
-          divide: 'divide-y divide-gray-200',
-          rounded: 'rounded-lg',
-          body: { padding: 'p-6' },
-          header: { padding: 'px-6 py-4' },
-          footer: { padding: 'px-6 py-4' }
+          base: `w-full min-h-[60vh] resize-y focus:ring-0 ${bgClass}`,
+          padding: { sm: 'p-4' }
         }"
-      >
-        <template #header>
-          <div class="flex items-center justify-between">
-            <span class="text-lg font-bold text-bcGovColor-darkGray">
-              {{ dialogTitle || ($attrs['aria-label'] as string) || t('btn.openInDialog') }}
-            </span>
-            <UButton
-              icon="i-mdi-close"
-              color="primary"
-              variant="ghost"
-              square
-              :aria-label="t('btn.close')"
-              :data-testid="`${dataTestid}-dialog-close-icon`"
-              @click="isDialogOpen = false"
-            />
-          </div>
-        </template>
+        @keydown.meta.enter="isDialogOpen = false"
+        @keydown.ctrl.enter="isDialogOpen = false"
+        @update:model-value="emit('change', $event)"
+      />
 
-        <UTextarea
-          v-model="model"
-          :placeholder="($attrs.placeholder as string) || ''"
-          :aria-label="($attrs['aria-label'] as string) || dialogTitle || t('btn.openInDialog')"
-          :disabled="Boolean($attrs.disabled)"
-          :color="color as any"
-          :data-testid="`${dataTestid}-dialog-textarea`"
-          resize
-          :ui="{
-            base: `min-h-[60vh] resize-y focus:ring-0 ${bgClass}`,
-            padding: { sm: 'p-4' }
-          }"
-          @update:model-value="emit('change', $event)"
-        />
-
-        <template #footer>
-          <div class="flex justify-end">
-            <UButton
-              :label="t('btn.done')"
-              color="primary"
-              variant="solid"
-              class="px-6"
-              :data-testid="`${dataTestid}-dialog-done`"
-              @click="isDialogOpen = false"
-            />
+      <template #footer>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5 text-xs text-gray-400">
+            <span>Press</span>
+            <kbd
+              class="rounded border border-gray-300 bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-600"
+            >
+              Esc
+            </kbd>
+            <span>or</span>
+            <kbd
+              class="rounded border border-gray-300 bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-600"
+            >
+              ⌘/Ctrl + Enter
+            </kbd>
+            <span>to exit</span>
           </div>
-        </template>
-      </UCard>
-    </UModal>
+          <UButton
+            :label="t('btn.done')"
+            color="primary"
+            variant="solid"
+            class="px-6"
+            :data-testid="`${dataTestid}-dialog-done`"
+            @click="isDialogOpen = false"
+          />
+        </div>
+      </template>
+    </ModalBase>
   </div>
 </template>

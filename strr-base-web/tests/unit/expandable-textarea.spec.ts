@@ -49,7 +49,9 @@ describe('ConnectFormExpandableTextarea Component', () => {
       },
       UCard: {
         template: '<div class="u-card-stub"><slot name="header" /><slot /><slot name="footer" /></div>'
-      }
+      },
+      UIcon: true,
+      ConnectContactBcros: true
     }
   }
 
@@ -163,5 +165,83 @@ describe('ConnectFormExpandableTextarea Component', () => {
 
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['Updated content'])
     expect(wrapper.emitted('change')?.[0]).toEqual(['Updated content'])
+  })
+
+  it('respects custom initialHeight and expandedMinHeight props', async () => {
+    const wrapper = mount(ConnectFormExpandableTextarea, {
+      props: {
+        modelValue: 'Some text',
+        initialHeight: 110,
+        expandedMinHeight: 400
+      },
+      global: globalMocks
+    })
+
+    expect(wrapper.find('textarea').element.style.height).toBe('110px')
+    await wrapper.findAll('.u-button-stub')[0]!.trigger('click')
+    await nextTick()
+    expect(wrapper.find('textarea').element.style.height).toBe('400px')
+  })
+
+  it('propagates disabled attribute to both main and modal textareas', async () => {
+    const wrapper = mount(ConnectFormExpandableTextarea, {
+      attrs: {
+        disabled: true
+      },
+      props: {
+        modelValue: 'Disabled text'
+      },
+      global: globalMocks
+    })
+
+    expect(wrapper.find('textarea').attributes('disabled')).toBeDefined()
+    // Open dialog
+    await wrapper.findAll('.u-button-stub')[1]!.trigger('click')
+    await nextTick()
+    expect(wrapper.find('.u-modal-stub textarea').attributes('disabled')).toBeDefined()
+  })
+
+  it('closes the modal when Done button is clicked', async () => {
+    const wrapper = mount(ConnectFormExpandableTextarea, {
+      props: { modelValue: 'Test message' },
+      global: globalMocks
+    })
+
+    await wrapper.findAll('.u-button-stub')[1]!.trigger('click')
+    await nextTick()
+    expect(wrapper.find('.u-modal-stub').exists()).toBe(true)
+
+    const doneButton = wrapper.find('[data-testid="expandable-textarea-dialog-done"]')
+    await doneButton.trigger('click')
+    await nextTick()
+    expect(wrapper.find('.u-modal-stub').exists()).toBe(false)
+  })
+
+  it('closes the modal on Cmd+Enter / Ctrl+Enter keyboard shortcuts', async () => {
+    const wrapper = mount(ConnectFormExpandableTextarea, {
+      props: { modelValue: 'Test message' },
+      global: globalMocks
+    })
+
+    await wrapper.findAll('.u-button-stub')[1]!.trigger('click')
+    await nextTick()
+    expect(wrapper.find('.u-modal-stub').exists()).toBe(true)
+
+    const dialogTextarea = wrapper.find('.u-modal-stub textarea')
+    await dialogTextarea.trigger('keydown', { key: 'Enter', metaKey: true })
+    await nextTick()
+    expect(wrapper.find('.u-modal-stub').exists()).toBe(false)
+  })
+
+  it('dynamically adapts gradient fade when white background is passed', () => {
+    const wrapper = mount(ConnectFormExpandableTextarea, {
+      props: {
+        modelValue: 'Some content',
+        bgClass: '!bg-white'
+      },
+      global: globalMocks
+    })
+
+    expect(wrapper.find('.from-white.via-white\\/85').exists()).toBe(true)
   })
 })
