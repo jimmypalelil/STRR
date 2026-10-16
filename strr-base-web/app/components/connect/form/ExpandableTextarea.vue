@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useToggle } from '@vueuse/core'
 
 defineOptions({ inheritAttrs: false })
+
+const DEFAULT_COLLAPSED_HEIGHT_PX = 290
+const DEFAULT_EXPANDED_HEIGHT_PX = 560
+const MIN_COLLAPSED_HEIGHT_CLASS = 'h-[290px]'
+const MIN_HEIGHT_CLASS = 'min-h-[80px]'
 
 const props = withDefaults(defineProps<{
   dataTestid?: string
@@ -13,8 +18,6 @@ const props = withDefaults(defineProps<{
   collapseAriaLabel?: string
   initialHeight?: number
   expandedMinHeight?: number
-  overflowThresholdLines?: number
-  overflowThresholdChars?: number
   resize?: boolean
   color?: string
   bgClass?: string
@@ -25,10 +28,8 @@ const props = withDefaults(defineProps<{
   dialogTitle: '',
   expandAriaLabel: '',
   collapseAriaLabel: '',
-  initialHeight: 290,
-  expandedMinHeight: 560,
-  overflowThresholdLines: 8,
-  overflowThresholdChars: 300,
+  initialHeight: DEFAULT_COLLAPSED_HEIGHT_PX,
+  expandedMinHeight: DEFAULT_EXPANDED_HEIGHT_PX,
   resize: true,
   color: 'gray',
   bgClass: '!bg-str-bgGray'
@@ -45,7 +46,6 @@ const { t } = useI18n()
 const textareaRef = ref<{ textarea?: HTMLTextAreaElement, $el?: HTMLElement } | null>(null)
 const [isExpanded, toggleExpandState] = useToggle(false)
 const [isDialogOpen] = useToggle(false)
-const isOverflowing = ref(false)
 
 const getTextareaEl = (): HTMLTextAreaElement | null =>
   textareaRef.value?.textarea ?? textareaRef.value?.$el?.querySelector?.('textarea') ?? null
@@ -57,42 +57,27 @@ const setHeight = (heightPx: number) => {
   }
 }
 
-const checkOverflow = () => {
-  const el = getTextareaEl()
-  if (el) {
-    isOverflowing.value = el.scrollHeight > el.clientHeight + 10
-  }
-}
-
-const canToggleExpand = computed(() => {
-  if (isExpanded.value) { return true }
-  const text = (model.value || '').trim()
-  if (!text) { return false }
-  return isOverflowing.value ||
-    text.split('\n').length > props.overflowThresholdLines ||
-    text.length > props.overflowThresholdChars
-})
+const canToggleExpand = computed(() => isExpanded.value || Boolean(model.value?.trim()))
 
 const toggleExpand = () => {
   const next = toggleExpandState()
   emit('toggleExpand', next)
   const el = getTextareaEl()
   if (el) {
-    setHeight(next ? Math.max(el.scrollHeight + 32, props.expandedMinHeight) : props.initialHeight)
+    setHeight(next ? Math.max(el.scrollHeight, props.expandedMinHeight) : props.initialHeight)
   }
 }
 
 const textareaClasses = computed(() => [
-  !isExpanded.value && (props.initialHeight === 290 ? 'h-[290px]' : `h-[${props.initialHeight}px]`),
-  'min-h-[80px] resize-y focus:ring-0',
+  !isExpanded.value && (props.initialHeight === DEFAULT_COLLAPSED_HEIGHT_PX
+    ? MIN_COLLAPSED_HEIGHT_CLASS
+    : `h-[${props.initialHeight}px]`),
+  `${MIN_HEIGHT_CLASS} resize-y focus:ring-0`,
   props.bgClass
 ].filter(Boolean).join(' '))
 
-watch(model, () => nextTick(checkOverflow))
-
 onMounted(() => {
   setHeight(props.initialHeight)
-  nextTick(checkOverflow)
 })
 </script>
 
