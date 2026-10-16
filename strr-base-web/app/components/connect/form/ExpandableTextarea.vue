@@ -94,13 +94,33 @@ const toggleExpand = () => {
   }
 }
 
-const textareaClasses = computed(() => [
-  isExpanded.value
-    ? `min-h-[${props.expandedMinHeight}px] max-h-[80vh]`
-    : `min-h-[${props.initialHeight}px] h-[${props.initialHeight}px]`,
-  props.bgClass,
-  'focus:ring-0 transition-all duration-200'
-].join(' '))
+const textareaClasses = computed(() => {
+  const heightClasses = isExpanded.value
+    ? (props.expandedMinHeight === 560
+        ? 'min-h-[560px] max-h-[80vh]'
+        : `min-h-[${props.expandedMinHeight}px] max-h-[80vh]`)
+    : (props.initialHeight === 290
+        ? 'min-h-[290px] h-[290px]'
+        : `min-h-[${props.initialHeight}px] h-[${props.initialHeight}px]`)
+  return [
+    heightClasses,
+    props.bgClass,
+    'focus:ring-0 transition-all duration-200'
+  ].join(' ')
+})
+
+const textareaStyle = computed(() => {
+  if (isExpanded.value) {
+    return {
+      minHeight: `${props.expandedMinHeight}px`,
+      maxHeight: '80vh'
+    }
+  }
+  return {
+    height: `${props.initialHeight}px`,
+    minHeight: `${props.initialHeight}px`
+  }
+})
 
 const onInput = (value: string) => {
   emit('update:modelValue', value)
@@ -128,6 +148,7 @@ onMounted(() => {
       :color="color as any"
       :disabled="disabled"
       :resize="resize"
+      :style="textareaStyle"
       auto-resize
       :ui="{
         base: textareaClasses,
