@@ -1,36 +1,28 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
-interface Props {
-  modelValue?: string
-  placeholder?: string
-  disabled?: boolean
-  ariaLabel?: string
-  expandAriaLabel?: string
-  collapseAriaLabel?: string
+import { ref, computed, watch, nextTick } from 'vue'
+import { useResizeObserver } from '@vueuse/core'
+
+defineOptions({ inheritAttrs: false })
+
+const props = withDefaults(defineProps<{
   dataTestid?: string
   toggleTestid?: string
+  expandAriaLabel?: string
+  collapseAriaLabel?: string
   initialHeight?: number
   expandedMinHeight?: number
-  maxViewportRatio?: number
   overflowThresholdLines?: number
   overflowThresholdChars?: number
   resize?: boolean
   color?: string
   bgClass?: string
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  modelValue: '',
-  placeholder: '',
-  disabled: false,
-  ariaLabel: '',
-  expandAriaLabel: '',
-  collapseAriaLabel: '',
+}>(), {
   dataTestid: 'expandable-textarea',
   toggleTestid: '',
+  expandAriaLabel: '',
+  collapseAriaLabel: '',
   initialHeight: 290,
   expandedMinHeight: 560,
-  maxViewportRatio: 0.8,
   overflowThresholdLines: 8,
   overflowThresholdChars: 300,
   resize: true,
@@ -38,60 +30,53 @@ const props = withDefaults(defineProps<Props>(), {
   bgClass: '!bg-str-bgGray'
 })
 
-const emit = defineEmits(['update:modelValue', 'change', 'blur', 'toggleExpand'])
+const emit = defineEmits<{
+  change: [value: string]
+  toggleExpand: [expanded: boolean]
+}>()
 
+const model = defineModel<string>({ default: '' })
 const { t } = useI18n()
 
-const textareaRef = ref<any>(null)
+const textareaRef = ref<{ textarea?: HTMLTextAreaElement, $el?: HTMLElement } | null>(null)
 const isExpanded = ref(false)
-const isTextareaOverflowing = ref(false)
+const scrollHeight = ref(0)
+const isOverflowing = ref(false)
 
-const getTextareaEl = (): HTMLTextAreaElement | null => {
-  if (!textareaRef.value) { return null }
-  if (textareaRef.value.$el) {
-    return textareaRef.value.$el.querySelector('textarea') || textareaRef.value.$el
-  }
-  return textareaRef.value instanceof HTMLTextAreaElement ? textareaRef.value : null
+const textareaEl = computed<HTMLTextAreaElement | null>(() =>
+  textareaRef.value?.textarea ??
+  textareaRef.value?.$el?.querySelector?.('textarea') ??
+  null
+)
+
+const syncMetrics = () => {
+  const el = textareaEl.value
+  if (!el) { return }
+  scrollHeight.value = el.scrollHeight
+  isOverflowing.value = el.scrollHeight > el.clientHeight + 10
 }
 
-const checkOverflow = () => {
-  const el = getTextareaEl()
-  if (el) {
-    isTextareaOverflowing.value = el.scrollHeight > el.clientHeight + 10
-  }
-}
+useResizeObserver(textareaEl, syncMetrics)
+
+watch(model, () => {
+  nextTick(syncMetrics)
+})
 
 const hasExpandableContent = computed(() => {
-  const text = props.modelValue || ''
-  if (!text.trim()) { return false }
-  const lineCount = text.split('\n').length
-  return lineCount > props.overflowThresholdLines || text.length > props.overflowThresholdChars
+  const text = (model.value || '').trim()
+  if (!text) { return false }
+  return text.split('\n').length > props.overflowThresholdLines ||
+    text.length > props.overflowThresholdChars
 })
 
 const canToggleExpand = computed(() =>
-  isExpanded.value || hasExpandableContent.value || isTextareaOverflowing.value
+  isExpanded.value || hasExpandableContent.value || isOverflowing.value
 )
 
 const toggleExpand = () => {
+  syncMetrics()
   isExpanded.value = !isExpanded.value
   emit('toggleExpand', isExpanded.value)
-
-  const el = getTextareaEl()
-  if (el) {
-    el.style.height = ''
-    if (isExpanded.value) {
-      nextTick(() => {
-        const viewportCeiling = typeof window !== 'undefined'
-          ? Math.floor(window.innerHeight * props.maxViewportRatio)
-          : 800
-        const targetHeight = Math.min(
-          Math.max(el.scrollHeight + 32, props.expandedMinHeight),
-          viewportCeiling
-        )
-        el.style.height = `${targetHeight}px`
-      })
-    }
-  }
 }
 
 const textareaClasses = computed(() => {
@@ -102,6 +87,7 @@ const textareaClasses = computed(() => {
     : (props.initialHeight === 290
         ? 'min-h-[290px] h-[290px]'
         : `min-h-[${props.initialHeight}px] h-[${props.initialHeight}px]`)
+
   return [
     heightClasses,
     props.bgClass,
@@ -109,55 +95,38 @@ const textareaClasses = computed(() => {
   ].join(' ')
 })
 
-const textareaStyle = computed(() => {
-  if (isExpanded.value) {
-    return {
-      minHeight: `${props.expandedMinHeight}px`,
-      maxHeight: '80vh'
-    }
-  }
-  return {
-    height: `${props.initialHeight}px`,
-    minHeight: `${props.initialHeight}px`
-  }
-})
-
-const onInput = (value: string) => {
-  emit('update:modelValue', value)
-  emit('change', value)
-  nextTick(checkOverflow)
-}
-
-watch(() => props.modelValue, () => {
-  nextTick(checkOverflow)
-})
-
-onMounted(() => {
-  nextTick(checkOverflow)
-})
+const textareaStyle = computed(() =>
+  isExpanded.value
+    ? {
+        height: `${Math.max(scrollHeight.value + 32, props.expandedMinHeight)}px`,
+        minHeight: `${props.expandedMinHeight}px`,
+        maxHeight: '80vh'
+      }
+    : {
+        height: `${props.initialHeight}px`,
+        minHeight: `${props.initialHeight}px`
+      }
+)
 </script>
 
 <template>
   <div class="relative w-full">
     <UTextarea
       ref="textareaRef"
-      :model-value="modelValue"
-      :placeholder="placeholder"
-      :aria-label="ariaLabel || placeholder"
+      v-model="model"
+      v-bind="$attrs"
       :data-testid="dataTestid"
       :color="color as any"
-      :disabled="disabled"
       :resize="resize"
       :style="textareaStyle"
-      auto-resize
+      autoresize
       :ui="{
         base: textareaClasses,
         padding: {
           sm: 'p-4 pr-24'
         }
       }"
-      @update:model-value="onInput"
-      @blur="emit('blur', $event)"
+      @update:model-value="emit('change', $event)"
     >
       <div
         v-if="canToggleExpand"
