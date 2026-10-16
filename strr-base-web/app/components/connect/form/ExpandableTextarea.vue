@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { useToggle } from '@vueuse/core'
 
 defineOptions({ inheritAttrs: false })
 
@@ -42,14 +43,19 @@ const model = defineModel<string>({ default: '' })
 const { t } = useI18n()
 
 const textareaRef = ref<{ textarea?: HTMLTextAreaElement, $el?: HTMLElement } | null>(null)
-const isExpanded = ref(false)
-const isDialogOpen = ref(false)
+const [isExpanded, toggleExpandState] = useToggle(false)
+const [isDialogOpen] = useToggle(false)
 const isOverflowing = ref(false)
 
 const getTextareaEl = (): HTMLTextAreaElement | null =>
-  textareaRef.value?.textarea ??
-  textareaRef.value?.$el?.querySelector?.('textarea') ??
-  null
+  textareaRef.value?.textarea ?? textareaRef.value?.$el?.querySelector?.('textarea') ?? null
+
+const setHeight = (heightPx: number) => {
+  const el = getTextareaEl()
+  if (el) {
+    el.style.height = `${heightPx}px`
+  }
+}
 
 const checkOverflow = () => {
   const el = getTextareaEl()
@@ -58,57 +64,34 @@ const checkOverflow = () => {
   }
 }
 
-const applyHeight = (heightPx: number) => {
-  const el = getTextareaEl()
-  if (el) {
-    el.style.height = `${heightPx}px`
-  }
-}
-
-const hasExpandableContent = computed(() => {
+const canToggleExpand = computed(() => {
+  if (isExpanded.value) { return true }
   const text = (model.value || '').trim()
   if (!text) { return false }
-  return text.split('\n').length > props.overflowThresholdLines ||
+  return isOverflowing.value ||
+    text.split('\n').length > props.overflowThresholdLines ||
     text.length > props.overflowThresholdChars
 })
 
-const canToggleExpand = computed(() =>
-  isExpanded.value || hasExpandableContent.value || isOverflowing.value
-)
-
 const toggleExpand = () => {
-  isExpanded.value = !isExpanded.value
-  emit('toggleExpand', isExpanded.value)
-
+  const next = toggleExpandState()
+  emit('toggleExpand', next)
   const el = getTextareaEl()
-  if (!el) { return }
-
-  if (isExpanded.value) {
-    const targetHeight = Math.max(el.scrollHeight + 32, props.expandedMinHeight)
-    applyHeight(targetHeight)
-  } else {
-    applyHeight(props.initialHeight)
+  if (el) {
+    setHeight(next ? Math.max(el.scrollHeight + 32, props.expandedMinHeight) : props.initialHeight)
   }
 }
 
-const textareaClasses = computed(() => {
-  const collapsedHeightClass = props.initialHeight === 290
-    ? 'h-[290px]'
-    : `h-[${props.initialHeight}px]`
+const textareaClasses = computed(() => [
+  !isExpanded.value && (props.initialHeight === 290 ? 'h-[290px]' : `h-[${props.initialHeight}px]`),
+  'min-h-[80px] resize-y focus:ring-0',
+  props.bgClass
+].filter(Boolean).join(' '))
 
-  return [
-    !isExpanded.value && collapsedHeightClass,
-    'min-h-[80px] resize-y focus:ring-0',
-    props.bgClass
-  ].filter(Boolean).join(' ')
-})
-
-watch(model, () => {
-  nextTick(checkOverflow)
-})
+watch(model, () => nextTick(checkOverflow))
 
 onMounted(() => {
-  applyHeight(props.initialHeight)
+  setHeight(props.initialHeight)
   nextTick(checkOverflow)
 })
 </script>
@@ -124,9 +107,7 @@ onMounted(() => {
       :resize="resize"
       :ui="{
         base: textareaClasses,
-        padding: {
-          sm: 'p-4 pb-12'
-        }
+        padding: { sm: 'p-4 pb-12' }
       }"
       @update:model-value="emit('change', $event)"
     >
@@ -168,9 +149,7 @@ onMounted(() => {
 
     <UModal
       v-model="isDialogOpen"
-      :ui="{
-        width: 'w-full sm:max-w-4xl'
-      }"
+      :ui="{ width: 'w-full sm:max-w-4xl' }"
     >
       <UCard
         :ui="{
@@ -202,7 +181,7 @@ onMounted(() => {
           v-model="model"
           :placeholder="($attrs.placeholder as string) || ''"
           :aria-label="($attrs['aria-label'] as string) || dialogTitle || t('btn.openInDialog')"
-          :disabled="($attrs.disabled as boolean) || false"
+          :disabled="Boolean($attrs.disabled)"
           :color="color as any"
           :data-testid="`${dataTestid}-dialog-textarea`"
           resize
