@@ -293,6 +293,7 @@ onMounted(() => {
                 v-model="decisionEmailContent.content"
                 :placeholder="decisionEmailPlaceholder"
                 :aria-label="decisionEmailPlaceholder"
+                :dialog-title="t('decision.emailTitle')"
                 data-testid="decision-email"
                 toggle-testid="toggle-expand-decision-email"
                 :disabled="isDecisionEmailDisabled"

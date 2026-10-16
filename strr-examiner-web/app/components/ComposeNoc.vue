@@ -71,6 +71,7 @@ onMounted(() => {
                 v-model="emailContent.content"
                 :placeholder="t('modal.noc.placeholder')"
                 :aria-label="t('modal.noc.placeholder')"
+                :dialog-title="t('modal.noc.title')"
                 data-testid="compose-email-textarea"
                 toggle-testid="toggle-expand-noc-email"
                 :initial-height="110"

@@ -6,6 +6,8 @@ defineOptions({ inheritAttrs: false })
 const props = withDefaults(defineProps<{
   dataTestid?: string
   toggleTestid?: string
+  dialogTestid?: string
+  dialogTitle?: string
   expandAriaLabel?: string
   collapseAriaLabel?: string
   initialHeight?: number
@@ -18,6 +20,8 @@ const props = withDefaults(defineProps<{
 }>(), {
   dataTestid: 'expandable-textarea',
   toggleTestid: '',
+  dialogTestid: '',
+  dialogTitle: '',
   expandAriaLabel: '',
   collapseAriaLabel: '',
   initialHeight: 290,
@@ -39,6 +43,7 @@ const { t } = useI18n()
 
 const textareaRef = ref<{ textarea?: HTMLTextAreaElement, $el?: HTMLElement } | null>(null)
 const isExpanded = ref(false)
+const isDialogOpen = ref(false)
 const isOverflowing = ref(false)
 
 const getTextareaEl = (): HTMLTextAreaElement | null =>
@@ -120,14 +125,14 @@ onMounted(() => {
       :ui="{
         base: textareaClasses,
         padding: {
-          sm: 'p-4 pr-24'
+          sm: 'p-4 pb-12'
         }
       }"
       @update:model-value="emit('change', $event)"
     >
       <div
         v-if="canToggleExpand"
-        class="absolute right-3 top-3 z-10"
+        class="absolute bottom-2.5 right-5 z-10 flex items-center gap-1.5"
       >
         <UButton
           :icon="isExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
@@ -142,7 +147,80 @@ onMounted(() => {
             : (expandAriaLabel || t('btn.expand'))"
           @click="toggleExpand"
         />
+        <UButton
+          icon="i-mdi-fullscreen"
+          :label="t('btn.openInDialog')"
+          size="xs"
+          color="white"
+          variant="solid"
+          class="shadow-sm"
+          :data-testid="dialogTestid || `${dataTestid}-open-dialog`"
+          :aria-label="t('btn.openInDialog')"
+          @click="isDialogOpen = true"
+        />
       </div>
     </UTextarea>
+
+    <UModal
+      v-model="isDialogOpen"
+      :ui="{
+        width: 'w-full sm:max-w-4xl'
+      }"
+    >
+      <UCard
+        :ui="{
+          divide: 'divide-y divide-gray-200',
+          rounded: 'rounded-lg',
+          body: { padding: 'p-6' },
+          header: { padding: 'px-6 py-4' },
+          footer: { padding: 'px-6 py-4' }
+        }"
+      >
+        <template #header>
+          <div class="flex items-center justify-between">
+            <span class="text-lg font-bold text-bcGovColor-darkGray">
+              {{ dialogTitle || ($attrs['aria-label'] as string) || t('btn.openInDialog') }}
+            </span>
+            <UButton
+              icon="i-mdi-close"
+              color="primary"
+              variant="ghost"
+              square
+              :aria-label="t('btn.close')"
+              :data-testid="`${dataTestid}-dialog-close-icon`"
+              @click="isDialogOpen = false"
+            />
+          </div>
+        </template>
+
+        <UTextarea
+          v-model="model"
+          :placeholder="($attrs.placeholder as string) || ''"
+          :aria-label="($attrs['aria-label'] as string) || dialogTitle || t('btn.openInDialog')"
+          :disabled="($attrs.disabled as boolean) || false"
+          :color="color as any"
+          :data-testid="`${dataTestid}-dialog-textarea`"
+          resize
+          :ui="{
+            base: `min-h-[60vh] resize-y focus:ring-0 ${bgClass}`,
+            padding: { sm: 'p-4' }
+          }"
+          @update:model-value="emit('change', $event)"
+        />
+
+        <template #footer>
+          <div class="flex justify-end">
+            <UButton
+              :label="t('btn.done')"
+              color="primary"
+              variant="solid"
+              class="px-6"
+              :data-testid="`${dataTestid}-dialog-done`"
+              @click="isDialogOpen = false"
+            />
+          </div>
+        </template>
+      </UCard>
+    </UModal>
   </div>
 </template>

@@ -70,7 +70,8 @@ export default {
     },
     createAnAccount: 'Create an Account',
     expand: 'Expand',
-    collapse: 'Collapse'
+    collapse: 'Collapse',
+    openInDialog: 'Full View'
   },
   contactInfo: {
     bcRegGeneral: {

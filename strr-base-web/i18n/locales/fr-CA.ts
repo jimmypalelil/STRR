@@ -49,7 +49,8 @@ export default {
     save: 'Sauvegarder',
     saveExit: 'Sauvegarder et Reprendre Plus Tard',
     expand: 'Développer',
-    collapse: 'Réduire'
+    collapse: 'Réduire',
+    openInDialog: 'Vue complète'
   },
   contactInfo: {
     bcRegGeneral: {

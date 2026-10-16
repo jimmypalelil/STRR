@@ -285,6 +285,7 @@ export default {
     done: 'Done',
     expand: 'Expand',
     collapse: 'Collapse',
+    openInDialog: 'Full View',
     showDetails: 'Show Details',
     hideDetails: 'Hide Details',
     decline: 'Refuse',
