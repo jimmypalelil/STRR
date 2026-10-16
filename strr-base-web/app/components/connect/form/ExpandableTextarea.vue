@@ -6,6 +6,8 @@ defineOptions({ inheritAttrs: false })
 
 const DEFAULT_COLLAPSED_HEIGHT_PX = 290
 const DEFAULT_EXPANDED_HEIGHT_PX = 560
+const MIN_COLLAPSED_HEIGHT_CLASS = 'h-[290px]'
+const MIN_HEIGHT_CLASS = 'min-h-[80px]'
 
 const props = withDefaults(defineProps<{
   dataTestid?: string
@@ -66,6 +68,14 @@ const toggleExpand = () => {
   }
 }
 
+const textareaClasses = computed(() => [
+  !isExpanded.value && (props.initialHeight === DEFAULT_COLLAPSED_HEIGHT_PX
+    ? MIN_COLLAPSED_HEIGHT_CLASS
+    : `h-[${props.initialHeight}px]`),
+  `${MIN_HEIGHT_CLASS} resize-y focus:ring-0`,
+  props.bgClass
+].filter(Boolean).join(' '))
+
 onMounted(() => {
   setHeight(props.initialHeight)
 })
@@ -81,7 +91,7 @@ onMounted(() => {
       :color="color as any"
       :resize="resize"
       :ui="{
-        base: ['min-h-[80px] resize-y focus:ring-0', bgClass],
+        base: textareaClasses,
         padding: { sm: 'p-4 pb-12' }
       }"
       @update:model-value="emit('change', $event)"

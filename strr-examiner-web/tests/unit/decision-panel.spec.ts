@@ -293,7 +293,7 @@ describe('DecisionPanel', () => {
     expect(toggleBtn.text()).toContain('Expand')
 
     const textareaEl = wrapper.find('[data-testid="decision-email"]')
-    expect((textareaEl.element as HTMLTextAreaElement).style.height).toBe('290px')
+    expect(textareaEl.classes()).toContain('h-[290px]')
 
     await toggleBtn.trigger('click')
     expect(toggleBtn.text()).toContain('Collapse')
@@ -302,6 +302,6 @@ describe('DecisionPanel', () => {
 
     await toggleBtn.trigger('click')
     expect(toggleBtn.text()).toContain('Expand')
-    expect((textareaEl.element as HTMLTextAreaElement).style.height).toBe('290px')
+    expect(textareaEl.classes()).toContain('h-[290px]')
   })
 })

@@ -97,6 +97,6 @@ describe('ComposeNoc Component', () => {
 
     await toggleBtn.trigger('click')
     expect(toggleBtn.text()).toContain('Expand')
-    expect((textareaEl.element as HTMLTextAreaElement).style.height).toBe('110px')
+    expect(textareaEl.classes()).toContain('h-[110px]')
   })
 })
