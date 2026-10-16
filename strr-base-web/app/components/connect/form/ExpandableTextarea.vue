@@ -92,10 +92,10 @@ const textareaClasses = computed(() => {
     : `h-[${props.initialHeight}px]`
 
   return [
-    isExpanded.value ? 'max-h-[80vh]' : collapsedHeightClass,
+    !isExpanded.value && collapsedHeightClass,
     'min-h-[80px] resize-y focus:ring-0',
     props.bgClass
-  ].join(' ')
+  ].filter(Boolean).join(' ')
 })
 
 watch(model, () => {

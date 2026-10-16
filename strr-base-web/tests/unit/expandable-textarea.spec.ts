@@ -91,7 +91,7 @@ describe('ConnectFormExpandableTextarea Component', () => {
     await button.trigger('click')
     await nextTick()
 
-    expect(wrapper.find('.u-textarea-stub').classes()).toContain('max-h-[80vh]')
+    expect(wrapper.find('.u-textarea-stub').classes()).not.toContain('max-h-[80vh]')
     expect(wrapper.find('textarea').element.style.height).toBe('560px')
     expect(wrapper.find('.u-button-stub').text()).toBe('Collapse')
     expect(wrapper.emitted('toggleExpand')).toBeTruthy()

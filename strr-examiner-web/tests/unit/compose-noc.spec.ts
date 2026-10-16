@@ -93,7 +93,7 @@ describe('ComposeNoc Component', () => {
     expect(toggleBtn.text()).toContain('Collapse')
     const textareaEl = wrapper.find('textarea')
     expect((textareaEl.element as HTMLTextAreaElement).style.height).toBe('400px')
-    expect(textareaEl.classes()).toContain('max-h-[80vh]')
+    expect(textareaEl.classes()).not.toContain('max-h-[80vh]')
 
     await toggleBtn.trigger('click')
     expect(toggleBtn.text()).toContain('Expand')
