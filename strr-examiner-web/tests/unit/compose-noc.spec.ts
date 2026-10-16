@@ -64,4 +64,27 @@ describe('ComposeNoc Component', () => {
     })
     expect(wrapper.find('[data-testid="compose-email"]').exists()).toBe(true)
   })
+
+  it('should have resize enabled and toggle expand/collapse rows', async () => {
+    const wrapper = await mountSuspended(ComposeNoc, {
+      global: { plugins: [enI18n] }
+    })
+
+    const textarea = wrapper.findComponent({ name: 'UTextarea' })
+    expect(textarea.exists()).toBe(true)
+    expect(textarea.props('resize')).toBe(true)
+    expect(textarea.props('rows')).toBe(3)
+
+    const toggleBtn = wrapper.find('[data-testid="toggle-expand-noc-email"]')
+    expect(toggleBtn.exists()).toBe(true)
+    expect(toggleBtn.text()).toContain('Expand')
+
+    await toggleBtn.trigger('click')
+    expect(toggleBtn.text()).toContain('Collapse')
+    expect(textarea.props('rows')).toBe(12)
+
+    await toggleBtn.trigger('click')
+    expect(toggleBtn.text()).toContain('Expand')
+    expect(textarea.props('rows')).toBe(3)
+  })
 })

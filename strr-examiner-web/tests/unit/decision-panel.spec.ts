@@ -219,4 +219,81 @@ describe('DecisionPanel', () => {
       global: { plugins: [enI18n] }
     })).resolves.not.toThrow()
   })
+
+  it('should have resize enabled on the decision email field for applications', async () => {
+    isApplication.value = true
+    activeHeader.value = {
+      examinerActions: [ApplicationActionsE.REJECT],
+      isSetAside: false,
+      assignee: { username: 'examiner1' }
+    }
+    decisionIntent.value = ApplicationActionsE.REJECT
+
+    const wrapper = await mountSuspended(DecisionPanel, {
+      global: { plugins: [enI18n] }
+    })
+
+    const emailTextarea = wrapper.findComponent({ name: 'UTextarea' })
+    expect(emailTextarea.exists()).toBe(true)
+    expect(emailTextarea.props('resize')).toBe(true)
+
+    const textareaEl = wrapper.find('[data-testid="decision-email"]')
+    expect(textareaEl.classes()).not.toContain('resize-none')
+  })
+
+  it('should have resize enabled on the decision email field for registrations and preserve content', async () => {
+    isApplication.value = false
+    activeHeader.value = {
+      examinerActions: [RegistrationActionsE.SUSPEND],
+      isSetAside: false,
+      assignee: { username: 'examiner1' }
+    }
+    activeReg.value = {
+      status: RegistrationStatus.ACTIVE
+    }
+    decisionIntent.value = RegistrationActionsE.SUSPEND
+    const wrapper = await mountSuspended(DecisionPanel, {
+      global: { plugins: [enI18n] }
+    })
+
+    const emailTextarea = wrapper.findComponent({ name: 'UTextarea' })
+    expect(emailTextarea.exists()).toBe(true)
+    expect(emailTextarea.props('resize')).toBe(true)
+
+    const textareaEl = wrapper.find('[data-testid="decision-email"]')
+    expect(textareaEl.classes()).not.toContain('resize-none')
+
+    decisionEmailContent.value.content = 'Preserved email text for registration'
+    await nextTick()
+    expect((textareaEl.element as HTMLTextAreaElement).value).toBe('Preserved email text for registration')
+  })
+
+  it('should toggle expand and collapse on the decision email field', async () => {
+    isApplication.value = true
+    activeHeader.value = {
+      examinerActions: [ApplicationActionsE.REJECT],
+      isSetAside: false,
+      assignee: { username: 'examiner1' }
+    }
+    decisionIntent.value = ApplicationActionsE.REJECT
+
+    const wrapper = await mountSuspended(DecisionPanel, {
+      global: { plugins: [enI18n] }
+    })
+
+    const toggleBtn = wrapper.find('[data-testid="toggle-expand-decision-email"]')
+    expect(toggleBtn.exists()).toBe(true)
+    expect(toggleBtn.text()).toContain('Expand')
+
+    const textareaEl = wrapper.find('[data-testid="decision-email"]')
+    expect(textareaEl.classes()).toContain('h-[290px]')
+
+    await toggleBtn.trigger('click')
+    expect(toggleBtn.text()).toContain('Collapse')
+    expect(textareaEl.classes()).toContain('h-[560px]')
+
+    await toggleBtn.trigger('click')
+    expect(toggleBtn.text()).toContain('Expand')
+    expect(textareaEl.classes()).toContain('h-[290px]')
+  })
 })

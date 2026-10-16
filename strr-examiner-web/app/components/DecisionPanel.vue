@@ -38,6 +38,20 @@ const isDecisionEmailDisabled = computed((): boolean =>
 
 const localConditions = ref<string[]>([])
 const customCondition = ref<string>('') // custom condition to be added to lit of all conditions
+const isEmailExpanded = ref(false)
+
+const toggleEmailExpanded = () => {
+  isEmailExpanded.value = !isEmailExpanded.value
+  const textareaEl = decisionEmailFormRef.value?.$el?.querySelector('textarea')
+  if (textareaEl) {
+    textareaEl.style.height = ''
+  }
+}
+
+const decisionEmailTextareaBase = computed(() => [
+  isEmailExpanded.value ? 'min-h-[560px] h-[560px]' : 'min-h-[290px] h-[290px]',
+  '!bg-str-bgGray focus:ring-0 transition-all duration-200'
+].join(' '))
 
 const decisionEmailPlaceholder = computed((): string =>
   !!decisionIntent.value && [ApplicationActionsE.SEND_NOC,
@@ -272,8 +286,20 @@ onMounted(() => {
           />
         </div>
         <div>
-          <div class="font-bold">
-            {{ t('decision.emailTitle') }}
+          <div class="flex items-center justify-between">
+            <div class="font-bold">
+              {{ t('decision.emailTitle') }}
+            </div>
+            <UButton
+              :icon="isEmailExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
+              :label="isEmailExpanded ? t('btn.collapse') : t('btn.expand')"
+              size="xs"
+              color="primary"
+              variant="ghost"
+              data-testid="toggle-expand-decision-email"
+              :aria-label="isEmailExpanded ? t('decision.collapseEmail') : t('decision.expandEmail')"
+              @click="toggleEmailExpanded"
+            />
           </div>
           <UForm
             ref="decisionEmailFormRef"
@@ -296,9 +322,10 @@ onMounted(() => {
                 data-testid="decision-email"
                 color="gray"
                 auto-resize
+                resize
                 :disabled="isDecisionEmailDisabled"
                 :ui="{
-                  base: 'h-[290px] !bg-str-bgGray focus:ring-0',
+                  base: decisionEmailTextareaBase,
                   padding: {
                     sm: 'p-4'
                   }

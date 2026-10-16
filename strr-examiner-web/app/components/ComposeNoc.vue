@@ -42,6 +42,15 @@ const handleInput = () => {
   }
 }
 
+const isEmailExpanded = ref(false)
+const toggleEmailExpanded = () => {
+  isEmailExpanded.value = !isEmailExpanded.value
+  const textareaEl = emailFormRef.value?.$el?.querySelector('textarea')
+  if (textareaEl) {
+    textareaEl.style.height = ''
+  }
+}
+
 // Reset the email a completing party content so that it does not carry to other applications
 onMounted(() => {
   emailContent.value.content = ''
@@ -62,8 +71,18 @@ onMounted(() => {
         data-testid="compose-email"
       >
         <div class="flex">
-          <div class="flex w-1/5 flex-col items-center">
+          <div class="flex w-1/5 flex-col items-center justify-between">
             <span class="pl-5 font-bold">{{ t('modal.noc.title') }}</span>
+            <UButton
+              :icon="isEmailExpanded ? 'i-mdi-arrow-collapse-vertical' : 'i-mdi-arrow-expand-vertical'"
+              :label="isEmailExpanded ? t('btn.collapse') : t('btn.expand')"
+              size="xs"
+              color="primary"
+              variant="ghost"
+              data-testid="toggle-expand-noc-email"
+              :aria-label="isEmailExpanded ? t('decision.collapseEmail') : t('decision.expandEmail')"
+              @click="toggleEmailExpanded"
+            />
           </div>
           <div class="flex-auto pr-10">
             <UFormGroup name="content">
@@ -75,7 +94,7 @@ onMounted(() => {
                 class="text-bcGovColor-midGray focus:ring-0"
                 auto-resize
                 resize
-                :rows="3"
+                :rows="isEmailExpanded ? 12 : 3"
                 @update:model-value="handleInput"
               />
             </UFormGroup>
