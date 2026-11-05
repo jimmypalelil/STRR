@@ -19,13 +19,19 @@ defineProps({
   max: { type: Number, default: undefined }
 })
 
+const onBlur = () => {
+  if (typeof model.value === 'string') {
+    model.value = model.value.trim()
+  }
+}
+
 defineExpose({ model })
 </script>
 
 <template>
   <UInput
     :id="id"
-    v-model.trim="model"
+    v-model="model"
     v-maska:model.unmasked="mask"
     :data-testid="id"
     v-bind="$attrs"
@@ -43,6 +49,7 @@ defineExpose({ model })
     :maxlength
     :min
     :max
+    @blur="onBlur"
   />
   <!-- :aria-errormessage="errorId" -->
   <!-- Doesnt look like aria-errormessage is well supported, need to look into this more -->

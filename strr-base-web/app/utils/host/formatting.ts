@@ -122,10 +122,10 @@ export function formatHostUnitAddressApi (unitAddress: HostPropertyAddress): Api
   delete baseAddress.address // including this passes API validation, but causes a failure in the registration creation
   return {
     ...baseAddress,
-    nickname: unitAddress.nickname || '',
-    streetName: unitAddress.streetName || '',
-    streetNumber: unitAddress.streetNumber || '',
-    unitNumber: unitAddress.unitNumber || ''
+    nickname: unitAddress.nickname?.trim() || '',
+    streetName: unitAddress.streetName?.trim() || '',
+    streetNumber: unitAddress.streetNumber?.trim() || '',
+    unitNumber: unitAddress.unitNumber?.trim() || ''
   }
 }
 
