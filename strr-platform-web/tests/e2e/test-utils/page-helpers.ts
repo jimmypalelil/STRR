@@ -101,7 +101,13 @@ export async function completeStep2 (
   await expect(page.getByTestId('business-details').getByRole('heading')).toContainText('Business Information')
 
   // fill in step 2 - business ID
-  await page.getByTestId('platform-business-legal-name').fill(businessDetails.legalName)
+  const legalNameInput = page.getByTestId('platform-business-legal-name')
+  await legalNameInput.click()
+  await legalNameInput.pressSequentially(`  ${businessDetails.legalName}  `)
+  await expect(legalNameInput).toHaveValue(`  ${businessDetails.legalName}  `)
+  await legalNameInput.blur()
+  await expect(legalNameInput).toHaveValue(businessDetails.legalName.trim())
+
   await page.getByTestId('platform-business-home-jur').fill(businessDetails.homeJurisdiction)
   await page.getByTestId('platform-business-number').fill(businessDetails.businessNumber)
   await page.getByTestId('platform-business-hasCpbc').getByText('Yes').check()
@@ -110,8 +116,17 @@ export async function completeStep2 (
   // fill in business address - address complete doesnt seem to be working here
   await page.getByTestId('platform-business-address-country').click()
   await page.getByRole('option', { name: 'Canada' }).click()
-  await page.getByTestId('platform-business-address-street').fill(businessDetails.mailingAddress.street)
-  await page.getByTestId('mailingAddress.city').fill(businessDetails.mailingAddress.city)
+  const streetInput = page.getByTestId('platform-business-address-street')
+  await streetInput.click()
+  await streetInput.pressSequentially(`  ${businessDetails.mailingAddress.street}  `)
+  await streetInput.blur()
+  await expect(streetInput).toHaveValue(businessDetails.mailingAddress.street.trim())
+
+  const cityInput = page.getByTestId('mailingAddress.city')
+  await cityInput.click()
+  await cityInput.pressSequentially(`  ${businessDetails.mailingAddress.city}  `)
+  await cityInput.blur()
+  await expect(cityInput).toHaveValue(businessDetails.mailingAddress.city.trim())
   await page.getByTestId('address-region-select').click()
   await page.getByRole('option', { name: businessDetails.mailingAddress.region }).click()
   await page.getByTestId('mailingAddress.postalCode').fill(businessDetails.mailingAddress.postalCode)
@@ -119,7 +134,12 @@ export async function completeStep2 (
 
   // check yes for attourney info
   await page.getByTestId('platform-business-hasRegOffAtt').getByText('Yes').check()
-  await page.getByTestId('platform-att-for-svc-name').fill(businessDetails.regOfficeOrAtt.attorneyName)
+  const attNameInput = page.getByTestId('platform-att-for-svc-name')
+  await attNameInput.click()
+  await attNameInput.pressSequentially(`  ${businessDetails.regOfficeOrAtt.attorneyName}  `)
+  await expect(attNameInput).toHaveValue(`  ${businessDetails.regOfficeOrAtt.attorneyName}  `)
+  await attNameInput.blur()
+  await expect(attNameInput).toHaveValue(businessDetails.regOfficeOrAtt.attorneyName.trim())
   await page.getByTestId('platform-registered-office-address-street')
     .fill(businessDetails.regOfficeOrAtt.mailingAddress.street)
   await page.getByTestId('regOfficeOrAtt.mailingAddress.city')

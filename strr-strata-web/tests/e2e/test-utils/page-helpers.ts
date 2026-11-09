@@ -100,15 +100,30 @@ export async function completeStep2 (
   await expect(page.getByTestId('business-details').getByRole('heading')).toContainText('Business Information')
 
   // fill in step 2 - business info
-  await page.getByTestId('strata-business-legal-name').fill(businessDetails.legalName)
+  const legalNameInput = page.getByTestId('strata-business-legal-name')
+  await legalNameInput.click()
+  await legalNameInput.pressSequentially(`  ${businessDetails.legalName}  `)
+  await expect(legalNameInput).toHaveValue(`  ${businessDetails.legalName}  `)
+  await legalNameInput.blur()
+  await expect(legalNameInput).toHaveValue(businessDetails.legalName.trim())
+
   await page.getByTestId('strata-business-home-jur').fill(businessDetails.homeJurisdiction)
   await page.getByTestId('strata-business-number').fill(businessDetails.businessNumber)
 
   // fill in business address - address complete doesnt seem to be working here
   await page.getByTestId('strata-business-address-country').click()
   await page.getByRole('option', { name: 'Canada' }).click()
-  await page.getByTestId('strata-business-address-street').fill(businessDetails.mailingAddress.street)
-  await page.getByTestId('mailingAddress.city').fill(businessDetails.mailingAddress.city)
+  const streetInput = page.getByTestId('strata-business-address-street')
+  await streetInput.click()
+  await streetInput.pressSequentially(`  ${businessDetails.mailingAddress.street}  `)
+  await streetInput.blur()
+  await expect(streetInput).toHaveValue(businessDetails.mailingAddress.street.trim())
+
+  const cityInput = page.getByTestId('mailingAddress.city')
+  await cityInput.click()
+  await cityInput.pressSequentially(`  ${businessDetails.mailingAddress.city}  `)
+  await cityInput.blur()
+  await expect(cityInput).toHaveValue(businessDetails.mailingAddress.city.trim())
   await page.getByTestId('address-region-select').click()
   await page.getByRole('option', { name: businessDetails.mailingAddress.region }).click()
   await page.getByTestId('mailingAddress.postalCode').fill(businessDetails.mailingAddress.postalCode)
@@ -127,7 +142,12 @@ export async function completeStep3 (
   await expect(getH2(page)).toContainText(i18nText.strr.step.title[2])
 
   const strataDetailsSection = page.locator('section').filter({ hasText: 'Strata-Titled Hotel or Motel Details' })
-  await strataDetailsSection.getByTestId('strata-brand-name').fill(strataDetails.brand.name)
+  const brandNameInput = strataDetailsSection.getByTestId('strata-brand-name')
+  await brandNameInput.click()
+  await brandNameInput.pressSequentially(`  ${strataDetails.brand.name}  `)
+  await expect(brandNameInput).toHaveValue(`  ${strataDetails.brand.name}  `)
+  await brandNameInput.blur()
+  await expect(brandNameInput).toHaveValue(strataDetails.brand.name.trim())
   await strataDetailsSection.getByTestId('strata-brand-site').fill(strataDetails.brand.website)
   await strataDetailsSection.locator(`input[type="radio"][value="${strataDetails.category}"]`).check()
   await strataDetailsSection.getByTestId('strata-details-numberOfUnits')

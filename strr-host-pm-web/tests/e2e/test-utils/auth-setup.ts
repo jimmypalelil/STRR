@@ -32,7 +32,7 @@ export async function authSetup (
 
     // permanent TOS as of Summer 2025
     const agreeToTerms = page.getByText('I agree to the BC Login')
-    if (agreeToTerms) {
+    if (await agreeToTerms.isVisible()) {
       await agreeToTerms.click()
       await page.getByRole('button', { name: 'Continue' }).click()
     }
@@ -43,7 +43,7 @@ export async function authSetup (
     await page.getByRole('button', { name: 'Continue' }).click()
     if (environment.toLowerCase() !== 'development') {
       const accountActivity = page.getByText('To complete login with your')
-      if (accountActivity) {
+      if (await accountActivity.isVisible()) {
         await page.getByRole('button', { name: 'Continue' }).click()
       }
       const otp = generateOTP(otpSecret)

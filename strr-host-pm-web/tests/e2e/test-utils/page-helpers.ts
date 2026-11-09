@@ -32,7 +32,7 @@ export async function completeLogin (page: Page, loginMethod: LoginSource) {
     await page.getByRole('button', { name: 'Continue' }).click()
     if (environment.toLowerCase() !== 'development') {
       const accountActivity = page.getByText('To complete login with your')
-      if (accountActivity) {
+      if (await accountActivity.isVisible()) {
         await page.getByRole('button', { name: 'Continue' }).click()
       }
       const otp = generateOTP(otpSecret)
@@ -50,7 +50,7 @@ export async function chooseAccount (page: Page, loginMethod: LoginSource) {
   const accountNameBCEID = 'Use this Account, ' + process.env.PLAYWRIGHT_TEST_BCEID_PREMIUM_ACCOUNT_NAME!
 
   await page.goto('./en-CA/auth/account/choose-existing', { waitUntil: 'load', timeout: 60000 })
-  await expect(page.getByTestId('h1')).toContainText('Existing Account Found')
+  await expect(page.getByTestId('h1')).toContainText('Existing Account Found', { timeout: 30000 })
 
   if (loginMethod === LoginSource.BCSC) {
     await page.getByRole('button', { name: accountNameBCSC }).click()
@@ -84,8 +84,15 @@ export const completeStep1 = async (
   await expect(page.getByTestId('h1')).toContainText('Short-Term Rental Registration', { timeout: 30000 })
   await expect(getH2(page)).toContainText('Define Your Short-Term Rental')
 
-  // fill in rental unit nickname
-  await page.getByTestId('rental-unit-address-nickname').fill(nickname)
+  // fill in rental unit nickname: verify spacebar keystrokes are registered and accidental leading/trailing spaces are trimmed on blur
+  const nicknameInput = page.getByTestId('rental-unit-address-nickname')
+  await nicknameInput.click()
+  // type with leading/trailing spaces using keyboard to verify spacebar keypresses are registered and not swallowed
+  await nicknameInput.pressSequentially(`  ${nickname}  `)
+  await expect(nicknameInput).toHaveValue(`  ${nickname}  `)
+  // trigger blur to verify accidental whitespace is trimmed automatically while inner spaces are preserved
+  await nicknameInput.blur()
+  await expect(nicknameInput).toHaveValue(nickname.trim())
 
   // enter address autocomplete or manual
   await page.getByRole('textbox', { name: 'Look up the Residential' }).click()
@@ -94,10 +101,30 @@ export const completeStep1 = async (
     await page.getByRole('option', { name: lookupAddress }).click() // 'Barkley Terr'
   } else { // enter address manually if not string
     await page.getByRole('button', { name: 'Enter the residential address manually' }).click()
-    await page.getByTestId('rental-property-address-streetNumber').fill(lookupAddress.streetNumber)
-    await page.getByTestId('rental-property-address-streetName').fill(lookupAddress.streetName)
-    await page.getByTestId('address.city').fill(lookupAddress.city)
-    await page.getByTestId('address.postalCode').fill(lookupAddress.postalCode)
+    const streetNumInput = page.getByTestId('rental-property-address-streetNumber')
+    await streetNumInput.click()
+    await streetNumInput.pressSequentially(`  ${lookupAddress.streetNumber}  `)
+    await streetNumInput.blur()
+    await expect(streetNumInput).toHaveValue(lookupAddress.streetNumber.trim())
+
+    const streetNameInput = page.getByTestId('rental-property-address-streetName')
+    await streetNameInput.click()
+    await streetNameInput.pressSequentially(`  ${lookupAddress.streetName}  `)
+    await streetNameInput.blur()
+    await expect(streetNameInput).toHaveValue(lookupAddress.streetName.trim())
+
+    const cityInput = page.getByTestId('address.city')
+    await cityInput.click()
+    await cityInput.pressSequentially(`  ${lookupAddress.city}  `)
+    await cityInput.blur()
+    await expect(cityInput).toHaveValue(lookupAddress.city.trim())
+
+    const postalCodeInput = page.getByTestId('address.postalCode')
+    await postalCodeInput.click()
+    await postalCodeInput.pressSequentially(`  ${lookupAddress.postalCode}  `)
+    await postalCodeInput.blur()
+    await expect(postalCodeInput).toHaveValue(lookupAddress.postalCode.trim())
+
     await page.getByRole('button', { name: 'Done', exact: true }).click()
   }
   await page.getByTestId('property-requirements-section').waitFor({ state: 'visible', timeout: 30000 }) // wait for autocomplete requirements to be displayed
@@ -132,15 +159,27 @@ export const completeStep2 = async (
   const compPartySection = page.locator('section').filter({ hasText: 'Add an Individual' })
   // add host role birth date and SIN
   await compPartySection.locator('input[type="checkbox"][name="isCompParty"]').check()
-  await compPartySection.getByTestId('host-owner-preferred-name').fill(completingParty.preferredName!)
+  const prefNameInput = compPartySection.getByTestId('host-owner-preferred-name')
+  await prefNameInput.click()
+  await prefNameInput.pressSequentially(`  ${completingParty.preferredName!}  `)
+  await prefNameInput.blur()
+  await expect(prefNameInput).toHaveValue(completingParty.preferredName!.trim())
   await compPartySection.locator('input[type="radio"][value="HOST"]').check()
   await compPartySection.getByTestId('date-select').fill(completingParty.dateOfBirth)
   await compPartySection.getByTestId('host-owner-taxNumber').fill(completingParty.taxNumber)
   // add host mailing address
   await compPartySection.getByTestId('host-owner-address-country').click()
   await compPartySection.getByRole('option', { name: 'Canada' }).click()
-  await compPartySection.getByTestId('host-owner-address-street').fill(completingParty.mailingAddress.street)
-  await compPartySection.getByTestId('mailingAddress.city').fill(completingParty.mailingAddress.city)
+  const streetInput = compPartySection.getByTestId('host-owner-address-street')
+  await streetInput.click()
+  await streetInput.pressSequentially(`  ${completingParty.mailingAddress.street}  `)
+  await streetInput.blur()
+  await expect(streetInput).toHaveValue(completingParty.mailingAddress.street.trim())
+  const partyCityInput = compPartySection.getByTestId('mailingAddress.city')
+  await partyCityInput.click()
+  await partyCityInput.pressSequentially(`  ${completingParty.mailingAddress.city}  `)
+  await partyCityInput.blur()
+  await expect(partyCityInput).toHaveValue(completingParty.mailingAddress.city.trim())
   await compPartySection.getByTestId('address-region-select').click()
   await compPartySection.getByRole('option', { name: completingParty.mailingAddress.region }).click()
   await compPartySection.getByTestId('mailingAddress.postalCode').fill(completingParty.mailingAddress.postalCode)

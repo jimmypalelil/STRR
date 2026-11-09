@@ -24,6 +24,20 @@ loginMethods.forEach((loginMethod) => {
       await expect(page.getByTestId('h1')).toContainText('Short-Term Rental Registration')
       await expect(getH2(page)).toContainText('Define Your Short-Term Rental')
 
+      // verify spacebar keystroke registration in empty field and accidental whitespace trimming on blur
+      const nicknameInput = page.getByTestId('rental-unit-address-nickname')
+      await nicknameInput.click()
+      await nicknameInput.press('Space')
+      await expect(nicknameInput).toHaveValue(' ')
+      await nicknameInput.press('Space')
+      await expect(nicknameInput).toHaveValue('  ')
+      await nicknameInput.pressSequentially('Cozy Cabin')
+      await expect(nicknameInput).toHaveValue('  Cozy Cabin')
+      await nicknameInput.press('Space')
+      await expect(nicknameInput).toHaveValue('  Cozy Cabin ')
+      await nicknameInput.blur()
+      await expect(nicknameInput).toHaveValue('Cozy Cabin')
+
       // enter address autocomplete
       await page.locator('#rental-property-address-lookup-street').click()
       await page.keyboard.type(lookupAddress, { delay: 100 }) // using .fill() doesnt trigger canada post api
