@@ -133,4 +133,18 @@ describe('Store - Host Application', () => {
     expect(header.applicationType).toBe('renewal')
     expect(header.registrationId).toBe(mockHostRegistration.id)
   })
+
+  it('should verify unit address and contact fields in payload have no untrimmed whitespace', () => {
+    const body = useHostApplicationStore().createApplicationBody()
+
+    expect(body.registration.unitAddress!.streetName).toBe(body.registration.unitAddress!.streetName.trim())
+    expect(body.registration.unitAddress!.city).toBe(body.registration.unitAddress!.city.trim())
+    expect(body.registration.unitAddress!.nickname).toBe(body.registration.unitAddress!.nickname!.trim())
+
+    const primary = body.registration.primaryContact as ApiHostContactPerson
+    expect(primary.firstName).toBe(primary.firstName.trim())
+    expect(primary.lastName).toBe(primary.lastName.trim())
+    expect(primary.mailingAddress.city).toBe(primary.mailingAddress.city.trim())
+    expect(primary.mailingAddress.postalCode).toBe(primary.mailingAddress.postalCode.trim())
+  })
 })

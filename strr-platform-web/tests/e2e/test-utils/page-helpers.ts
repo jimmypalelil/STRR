@@ -264,8 +264,45 @@ export async function completeStep4 (
   // Check certify checkbox
   await page.getByTestId('confirmation-checkbox').check()
 
+  // intercept application submission to assert payload strings are trimmed
+  const applicationRequestPromise = page.waitForRequest(
+    request => request.url().includes('/applications') && ['POST', 'PUT'].includes(request.method()),
+    { timeout: 10000 }
+  ).catch(() => null)
+
   // finalize and submit
   await page.getByRole('button', { name: 'Submit & Pay' }).click()
+
+  const applicationRequest = await applicationRequestPromise
+  if (applicationRequest) {
+    const postData = JSON.parse(applicationRequest.postData() || '{}')
+    if (postData.registration?.businessDetails) {
+      const { legalName, mailingAddress, regOfficeOrAtt } = postData.registration.businessDetails
+      if (legalName) {
+        expect(legalName).toBe(legalName.trim())
+      }
+      if (mailingAddress?.street) {
+        expect(mailingAddress.street).toBe(mailingAddress.street.trim())
+      }
+      if (mailingAddress?.city) {
+        expect(mailingAddress.city).toBe(mailingAddress.city.trim())
+      }
+      if (regOfficeOrAtt?.attorneyName) {
+        expect(regOfficeOrAtt.attorneyName).toBe(regOfficeOrAtt.attorneyName.trim())
+      }
+      if (regOfficeOrAtt?.mailingAddress?.street) {
+        expect(regOfficeOrAtt.mailingAddress.street).toBe(regOfficeOrAtt.mailingAddress.street.trim())
+      }
+    }
+    if (postData.registration?.platformDetails?.brands) {
+      for (const brand of postData.registration.platformDetails.brands) {
+        if (brand?.name) {
+          expect(brand.name).toBe(brand.name.trim())
+        }
+      }
+    }
+  }
+
   await expect(page.getByTestId('h1')).toContainText(businessDetails.legalName)
   await expect(page).toHaveURL(/.*\/platform\/dashboard$/)
 }

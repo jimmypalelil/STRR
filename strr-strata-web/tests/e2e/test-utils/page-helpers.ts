@@ -244,8 +244,39 @@ export async function completeStep4 (
   // Check certify checkbox
   await page.getByTestId('confirmation-checkbox').check()
 
+  // intercept application submission to assert payload strings are trimmed
+  const applicationRequestPromise = page.waitForRequest(
+    request => request.url().includes('/applications') && ['POST', 'PUT'].includes(request.method()),
+    { timeout: 10000 }
+  ).catch(() => null)
+
   // finalize and submit
   await page.getByRole('button', { name: 'Submit & Pay' }).click()
+
+  const applicationRequest = await applicationRequestPromise
+  if (applicationRequest) {
+    const postData = JSON.parse(applicationRequest.postData() || '{}')
+    if (postData.registration?.businessDetails) {
+      const { legalName, mailingAddress } = postData.registration.businessDetails
+      if (legalName) {
+        expect(legalName).toBe(legalName.trim())
+      }
+      if (mailingAddress?.street) {
+        expect(mailingAddress.street).toBe(mailingAddress.street.trim())
+      }
+      if (mailingAddress?.city) {
+        expect(mailingAddress.city).toBe(mailingAddress.city.trim())
+      }
+      if (mailingAddress?.postalCode) {
+        expect(mailingAddress.postalCode).toBe(mailingAddress.postalCode.trim())
+      }
+    }
+    if (postData.registration?.strataHotelDetails?.brand?.name) {
+      const brandName = postData.registration.strataHotelDetails.brand.name
+      expect(brandName).toBe(brandName.trim())
+    }
+  }
+
   page.waitForURL('**/strata-hotel/dashboard/**')
   await expect(page.getByTestId('h1')).toContainText(strataDetails.brand.name)
   await expect(page).toHaveURL(/.*\/strata-hotel\/dashboard\/.*/)

@@ -369,8 +369,47 @@ export const completeStep4 = async (
   await page.getByTestId('agreedToRentalAct-checkbox').check()
   await page.getByTestId('agreedToSubmit-checkbox').check()
 
+  // intercept application submission to assert payload strings are trimmed
+  const applicationRequestPromise = page.waitForRequest(
+    request => request.url().includes('/applications') && ['POST', 'PUT'].includes(request.method()),
+    { timeout: 10000 }
+  ).catch(() => null)
+
   // finalize and submit
   await page.getByRole('button', { name: 'Submit & Pay' }).click()
+
+  const applicationRequest = await applicationRequestPromise
+  if (applicationRequest) {
+    const postData = JSON.parse(applicationRequest.postData() || '{}')
+    if (postData.registration?.unitAddress) {
+      const { nickname: unitNick, streetName, city, postalCode } = postData.registration.unitAddress
+      if (unitNick) {
+        expect(unitNick).toBe(unitNick.trim())
+      }
+      if (streetName) {
+        expect(streetName).toBe(streetName.trim())
+      }
+      if (city) {
+        expect(city).toBe(city.trim())
+      }
+      if (postalCode) {
+        expect(postalCode).toBe(postalCode.trim())
+      }
+    }
+    if (postData.registration?.primaryContact?.mailingAddress) {
+      const { street, city, postalCode } = postData.registration.primaryContact.mailingAddress
+      if (street) {
+        expect(street).toBe(street.trim())
+      }
+      if (city) {
+        expect(city).toBe(city.trim())
+      }
+      if (postalCode) {
+        expect(postalCode).toBe(postalCode.trim())
+      }
+    }
+  }
+
   await page.waitForURL('**/dashboard/**')
   await expect(page.getByTestId('h1')).toContainText(nickname)
   await expect(page).toHaveURL(/.*\/dashboard\/.*/)
