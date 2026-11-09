@@ -60,14 +60,17 @@ test.describe('Examiner Dashboard', () => {
     await expect(page).toHaveURL(/\/examine\//, { timeout: 15000 })
   })
 
-  test('clear all filters button', async ({ page }) => {
+  test('clear all filters button and spacebar text entry', async ({ page }) => {
     await page.goto(DASHBOARD_URL)
     await expect(page.getByTestId('examiner-dashboard-page')).toBeVisible({ timeout: 30000 })
 
-    // type in search, then clear and verify
+    // type in search with spacebar keystrokes and leading/trailing spaces, then clear and verify
     const searchInput = page.getByTestId('dashboard-search-input')
-    await searchInput.fill('abc')
-    await expect(searchInput).toHaveValue('abc')
+    await searchInput.click()
+    await searchInput.press('Space')
+    await expect(searchInput).toHaveValue(' ')
+    await searchInput.pressSequentially('  abc 123  ')
+    await expect(searchInput).toHaveValue('   abc 123  ')
     await page.getByTestId('clear-filters-button').click()
     await expect(searchInput).toHaveValue('')
   })
